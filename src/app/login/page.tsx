@@ -42,12 +42,13 @@ function VersionDisplay() {
       <span className='font-mono'>v{CURRENT_VERSION}</span>
       {!isChecking && updateStatus !== UpdateStatus.FETCH_FAILED && (
         <div
-          className={`flex items-center gap-1.5 ${updateStatus === UpdateStatus.HAS_UPDATE
-            ? 'text-yellow-600 dark:text-yellow-400'
-            : updateStatus === UpdateStatus.NO_UPDATE
+          className={`flex items-center gap-1.5 ${
+            updateStatus === UpdateStatus.HAS_UPDATE
+              ? 'text-yellow-600 dark:text-yellow-400'
+              : updateStatus === UpdateStatus.NO_UPDATE
               ? 'text-green-600 dark:text-green-400'
               : ''
-            }`}
+          }`}
         >
           {updateStatus === UpdateStatus.HAS_UPDATE && (
             <>
@@ -104,6 +105,10 @@ function LoginPageClient() {
       });
 
       if (res.ok) {
+        const data = await res.json();
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+        }
         const redirect = searchParams.get('redirect') || '/';
         router.replace(redirect);
       } else if (res.status === 401) {
@@ -118,8 +123,6 @@ function LoginPageClient() {
       setLoading(false);
     }
   };
-
-
 
   return (
     <div className='relative min-h-screen flex items-center justify-center px-4 overflow-hidden'>
@@ -170,9 +173,7 @@ function LoginPageClient() {
           {/* 登录按钮 */}
           <button
             type='submit'
-            disabled={
-              !password || loading || (shouldAskUsername && !username)
-            }
+            disabled={!password || loading || (shouldAskUsername && !username)}
             className='inline-flex w-full justify-center rounded-lg bg-green-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:from-green-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
           >
             {loading ? '登录中...' : '登录'}

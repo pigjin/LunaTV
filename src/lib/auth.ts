@@ -1,71 +1,58 @@
 import { NextRequest } from 'next/server';
 
-// 从cookie获取认证信息 (服务端使用)
-export function getAuthInfoFromCookie(request: NextRequest): {
-  password?: string;
-  username?: string;
-  signature?: string;
-  timestamp?: number;
-} | null {
-  const authCookie = request.cookies.get('auth');
+import { decodeJWT, JWTPayload, verifyJWT } from '@/lib/jwt';
 
-  if (!authCookie) {
+// 验证并获取认证信息 (服务端使用，验证签名)
+export async function verifyAuthToken(
+  request: NextRequest
+): Promise<JWTPayload | null> {
+  let token: string | undefined;
+
+  // 1. 优先尝试从 Header 获取
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  }
+
+  // 2. 如果 Header 没有，尝试从 Cookie 获取
+  if (!token) {
+    const cookie = request.cookies.get('auth');
+    if (cookie) {
+      token = cookie.value;
+    }
+  }
+
+  if (!token) {
     return null;
   }
 
-  try {
-    const decoded = decodeURIComponent(authCookie.value);
-    const authData = JSON.parse(decoded);
-    return authData;
-  } catch (error) {
-    return null;
-  }
+  return await verifyJWT(token);
 }
 
-// 从cookie获取认证信息 (客户端使用)
-export function getAuthInfoFromBrowserCookie(): {
-  password?: string;
-  username?: string;
-  signature?: string;
-  timestamp?: number;
-  role?: 'owner' | 'admin' | 'user';
-} | null {
+// 兼容旧的函数名，但改为异步，因为 JWT 验证是异步的
+// 注意：这个函数在之前的代码中是同步的，如果直接替换可能会报错。
+// 需要检查调用处。大部分调用处是在 middleware 或 API routes，可以是异步的。
+// 但是如果是同步调用，需要修改调用处。
+// 先保留这个名字，但在内部调用 verifyJWT，并返回 Promise。
+export async function getAuthInfoFromCookie(
+  request: NextRequest
+): Promise<JWTPayload | null> {
+  return verifyAuthToken(request);
+}
+
+// 从localStorage获取认证信息 (客户端使用，不验证签名)
+export function getAuthInfoFromBrowserCookie(): JWTPayload | null {
   if (typeof window === 'undefined') {
     return null;
   }
 
   try {
-    // 解析 document.cookie
-    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-      const trimmed = cookie.trim();
-      const firstEqualIndex = trimmed.indexOf('=');
-
-      if (firstEqualIndex > 0) {
-        const key = trimmed.substring(0, firstEqualIndex);
-        const value = trimmed.substring(firstEqualIndex + 1);
-        if (key && value) {
-          acc[key] = value;
-        }
-      }
-
-      return acc;
-    }, {} as Record<string, string>);
-
-    const authCookie = cookies['auth'];
-    if (!authCookie) {
+    const token = localStorage.getItem('token');
+    if (!token) {
       return null;
     }
 
-    // 处理可能的双重编码
-    let decoded = decodeURIComponent(authCookie);
-
-    // 如果解码后仍然包含 %，说明是双重编码，需要再次解码
-    if (decoded.includes('%')) {
-      decoded = decodeURIComponent(decoded);
-    }
-
-    const authData = JSON.parse(decoded);
-    return authData;
+    return decodeJWT(token);
   } catch (error) {
     return null;
   }

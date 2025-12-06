@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { authFetch } from '@/lib/auth-client';
+
 interface SearchSuggestionsProps {
   query: string;
   isVisible: boolean;
@@ -41,7 +43,7 @@ export default function SearchSuggestions({
     abortControllerRef.current = controller;
 
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `/api/search/suggestions?q=${encodeURIComponent(searchQuery)}`,
         {
           signal: controller.signal,
@@ -154,7 +156,7 @@ export default function SearchSuggestions({
         <button
           key={`related-${suggestion.text}`}
           onClick={() => onSelect(suggestion.text)}
-          className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 flex items-center gap-3"
+          className='w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 flex items-center gap-3'
         >
           <span className='flex-1 text-sm text-gray-700 dark:text-gray-300 truncate'>
             {suggestion.text}

@@ -452,6 +452,8 @@ if (typeof window !== 'undefined') {
   setTimeout(() => cacheManager.clearExpiredCaches(), 1000);
 }
 
+import { authFetch } from './auth-client';
+
 // ---- 工具函数 ----
 /**
  * 通用的 fetch 函数，处理 401 状态码自动跳转登录
@@ -460,13 +462,13 @@ async function fetchWithAuth(
   url: string,
   options?: RequestInit
 ): Promise<Response> {
-  const res = await fetch(url, options);
+  const res = await authFetch(url, options);
   if (!res.ok) {
     // 如果是 401 未授权，跳转到登录页面
     if (res.status === 401) {
       // 调用 logout 接口
       try {
-        await fetch('/api/logout', {
+        await authFetch('/api/logout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
@@ -1358,7 +1360,7 @@ export function subscribeToDataUpdates<T>(
   callback: (data: T) => void
 ): () => void {
   if (typeof window === 'undefined') {
-    return () => { };
+    return () => {};
   }
 
   const handleUpdate = (event: CustomEvent) => {
