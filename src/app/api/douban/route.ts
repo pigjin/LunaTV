@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getCacheTime } from '@/lib/config';
 import { fetchDoubanData } from '@/lib/douban';
-import { DoubanItem, DoubanResult } from '@/lib/types';
+import { MovieItem, MovieResult } from '@/lib/types';
 
 interface DoubanApiResponse {
   subjects: Array<{
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     const doubanData = await fetchDoubanData<DoubanApiResponse>(target);
 
     // 转换数据格式
-    const list: DoubanItem[] = doubanData.subjects.map((item) => ({
+    const list: MovieItem[] = doubanData.subjects.map((item) => ({
       id: item.id,
       title: item.title,
       poster: item.cover,
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
       year: '',
     }));
 
-    const response: DoubanResult = {
+    const response: MovieResult = {
       code: 200,
       message: '获取成功',
       list: list,
@@ -127,7 +127,7 @@ function handleTop250(pageStart: number) {
       // 通过正则同时捕获影片 id、标题、封面以及评分
       const moviePattern =
         /<div class="item">[\s\S]*?<a[^>]+href="https?:\/\/movie\.douban\.com\/subject\/(\d+)\/"[\s\S]*?<img[^>]+alt="([^"]+)"[^>]*src="([^"]+)"[\s\S]*?<span class="rating_num"[^>]*>([^<]*)<\/span>[\s\S]*?<\/div>/g;
-      const movies: DoubanItem[] = [];
+      const movies: MovieItem[] = [];
       let match;
 
       while ((match = moviePattern.exec(html)) !== null) {
@@ -148,7 +148,7 @@ function handleTop250(pageStart: number) {
         });
       }
 
-      const apiResponse: DoubanResult = {
+      const apiResponse: MovieResult = {
         code: 200,
         message: '获取成功',
         list: movies,

@@ -12,7 +12,7 @@ import {
   getDoubanList,
   getDoubanRecommends,
 } from '@/lib/douban.client';
-import { DoubanItem, DoubanResult } from '@/lib/types';
+import { MovieItem, MovieResult } from '@/lib/types';
 
 import DoubanCardSkeleton from '@/components/DoubanCardSkeleton';
 import DoubanCustomSelector from '@/components/DoubanCustomSelector';
@@ -22,7 +22,7 @@ import VideoCard from '@/components/VideoCard';
 
 function DoubanPageClient() {
   const searchParams = useSearchParams();
-  const [doubanData, setDoubanData] = useState<DoubanItem[]>([]);
+  const [doubanData, setDoubanData] = useState<MovieItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -266,7 +266,7 @@ function DoubanPageClient() {
       setHasMore(true);
       setIsLoadingMore(false);
 
-      let data: DoubanResult;
+      let data: MovieResult;
 
       if (type === 'custom') {
         // 自定义分类模式：根据选中的一级和二级选项获取对应的分类
@@ -434,7 +434,7 @@ function DoubanPageClient() {
         try {
           setIsLoadingMore(true);
 
-          let data: DoubanResult;
+          let data: MovieResult;
           if (type === 'custom') {
             // 自定义分类模式：根据选中的一级和二级选项获取对应的分类
             const selectedCategory = customCategories.find(

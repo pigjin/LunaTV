@@ -45,14 +45,12 @@ export async function POST(req: NextRequest) {
         type: 'local',
       });
 
-      const response = NextResponse.json({
+      return NextResponse.json({
         ok: true,
         token,
         role: 'user',
         username: undefined,
       });
-
-      return response;
     }
 
     // 数据库 / redis 模式——校验用户名并尝试连接数据库
@@ -77,14 +75,12 @@ export async function POST(req: NextRequest) {
         type: 'db',
       });
 
-      const response = NextResponse.json({
+      return NextResponse.json({
         ok: true,
         token,
         role: 'owner',
         username,
       });
-
-      return response;
     } else if (username === process.env.USERNAME) {
       return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
     }
@@ -112,14 +108,12 @@ export async function POST(req: NextRequest) {
         type: 'db',
       });
 
-      const response = NextResponse.json({
+      return NextResponse.json({
         ok: true,
         token,
         role: user?.role || 'user',
         username,
       });
-
-      return response;
     } catch (err) {
       console.error('数据库验证失败', err);
       return NextResponse.json({ error: '数据库错误' }, { status: 500 });

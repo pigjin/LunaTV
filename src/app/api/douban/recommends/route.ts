@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getCacheTime } from '@/lib/config';
 import { fetchDoubanData } from '@/lib/douban';
-import { DoubanResult } from '@/lib/types';
+import { MovieResult } from '@/lib/types';
 
 interface DoubanRecommendApiResponse {
   total: number;
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
         rate: item.rating?.value ? item.rating.value.toFixed(1) : '',
         year: item.year,
       }));
-    const response: DoubanResult = {
+    const response: MovieResult = {
       code: 200,
       message: '获取成功',
       list: list,

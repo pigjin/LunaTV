@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getCacheTime } from '@/lib/config';
 import { fetchDoubanData } from '@/lib/douban';
-import { DoubanItem, DoubanResult } from '@/lib/types';
+import { MovieResult,MovieItem } from '@/lib/types';
 
 interface DoubanCategoryApiResponse {
   total: number;
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
     const doubanData = await fetchDoubanData<DoubanCategoryApiResponse>(target);
 
     // 转换数据格式
-    const list: DoubanItem[] = doubanData.items.map((item) => ({
+    const list: MovieItem[] = doubanData.items.map((item) => ({
       id: item.id,
       title: item.title,
       poster: item.pic?.normal || item.pic?.large || '',
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
       year: item.card_subtitle?.match(/(\d{4})/)?.[1] || '',
     }));
 
-    const response: DoubanResult = {
+    const response: MovieResult = {
       code: 200,
       message: '获取成功',
       list: list,

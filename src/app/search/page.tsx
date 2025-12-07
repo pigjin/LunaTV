@@ -43,7 +43,7 @@ function SearchPageClient() {
   const [showResults, setShowResults] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [totalSources, setTotalSources] = useState(0);
   const [completedSources, setCompletedSources] = useState(0);
   const pendingResultsRef = useRef<SearchResult[]>([]);
@@ -452,12 +452,10 @@ function SearchPageClient() {
 
     if (query) {
       setSearchQuery(query);
-      // 新搜索：关闭旧连接并清空结果
-      if (eventSourceRef.current) {
-        try {
-          eventSourceRef.current.close();
-        } catch {}
-        eventSourceRef.current = null;
+      // 新搜索：中止旧请求并清空结果
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
       setSearchResults([]);
       setTotalSources(0);
@@ -492,101 +490,129 @@ function SearchPageClient() {
       }
 
       if (currentFluidSearch) {
-        // 流式搜索：打开新的流式连接
-        const es = new EventSource(
-          `/api/search/ws?q=${encodeURIComponent(trimmed)}`
-        );
-        eventSourceRef.current = es;
+        // 流式搜索：使用 fetch 并携带 Authorization 头
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
 
-        es.onmessage = (event) => {
-          if (!event.data) return;
-          try {
-            const payload = JSON.parse(event.data);
-            if (currentQueryRef.current !== trimmed) return;
-            switch (payload.type) {
-              case 'start':
-                setTotalSources(payload.totalSources || 0);
-                setCompletedSources(0);
-                break;
-              case 'source_result': {
-                setCompletedSources((prev) => prev + 1);
-                if (
-                  Array.isArray(payload.results) &&
-                  payload.results.length > 0
-                ) {
-                  // 缓冲新增结果，节流刷入，避免频繁重渲染导致闪烁
-                  const activeYearOrder =
-                    viewMode === 'agg'
-                      ? filterAgg.yearOrder
-                      : filterAll.yearOrder;
-                  const incoming: SearchResult[] =
-                    activeYearOrder === 'none'
-                      ? sortBatchForNoOrder(payload.results as SearchResult[])
-                      : (payload.results as SearchResult[]);
-                  pendingResultsRef.current.push(...incoming);
-                  if (!flushTimerRef.current) {
-                    flushTimerRef.current = window.setTimeout(() => {
-                      const toAppend = pendingResultsRef.current;
-                      pendingResultsRef.current = [];
-                      startTransition(() => {
-                        setSearchResults((prev) => prev.concat(toAppend));
-                      });
-                      flushTimerRef.current = null;
-                    }, 80);
+        authFetch(`/api/search/ws?q=${encodeURIComponent(trimmed)}`, {
+          signal: controller.signal,
+        })
+          .then(async (response) => {
+            if (!response.ok || !response.body) {
+              throw new Error('Network response was not ok');
+            }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            try {
+              // eslint-disable-next-line no-constant-condition
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const jsonStr = line.slice(6);
+                    try {
+                      const payload = JSON.parse(jsonStr);
+                      if (currentQueryRef.current !== trimmed) return;
+
+                      switch (payload.type) {
+                        case 'start':
+                          setTotalSources(payload.totalSources || 0);
+                          setCompletedSources(0);
+                          break;
+                        case 'source_result': {
+                          setCompletedSources((prev) => prev + 1);
+                          if (
+                            Array.isArray(payload.results) &&
+                            payload.results.length > 0
+                          ) {
+                            // 缓冲新增结果，节流刷入，避免频繁重渲染导致闪烁
+                            const activeYearOrder =
+                              viewMode === 'agg'
+                                ? filterAgg.yearOrder
+                                : filterAll.yearOrder;
+                            const incoming: SearchResult[] =
+                              activeYearOrder === 'none'
+                                ? sortBatchForNoOrder(
+                                    payload.results as SearchResult[]
+                                  )
+                                : (payload.results as SearchResult[]);
+                            pendingResultsRef.current.push(...incoming);
+                            if (!flushTimerRef.current) {
+                              flushTimerRef.current = window.setTimeout(() => {
+                                const toAppend = pendingResultsRef.current;
+                                pendingResultsRef.current = [];
+                                startTransition(() => {
+                                  setSearchResults((prev) =>
+                                    prev.concat(toAppend)
+                                  );
+                                });
+                                flushTimerRef.current = null;
+                              }, 80);
+                            }
+                          }
+                          break;
+                        }
+                        case 'source_error':
+                          setCompletedSources((prev) => prev + 1);
+                          break;
+                        case 'complete':
+                          setCompletedSources(
+                            payload.completedSources || totalSources
+                          );
+                          // 完成前确保将缓冲写入
+                          if (pendingResultsRef.current.length > 0) {
+                            const toAppend = pendingResultsRef.current;
+                            pendingResultsRef.current = [];
+                            if (flushTimerRef.current) {
+                              clearTimeout(flushTimerRef.current);
+                              flushTimerRef.current = null;
+                            }
+                            startTransition(() => {
+                              setSearchResults((prev) => prev.concat(toAppend));
+                            });
+                          }
+                          setIsLoading(false);
+                          if (abortControllerRef.current === controller) {
+                            abortControllerRef.current = null;
+                          }
+                          break;
+                      }
+                    } catch {}
                   }
                 }
-                break;
               }
-              case 'source_error':
-                setCompletedSources((prev) => prev + 1);
-                break;
-              case 'complete':
-                setCompletedSources(payload.completedSources || totalSources);
-                // 完成前确保将缓冲写入
-                if (pendingResultsRef.current.length > 0) {
-                  const toAppend = pendingResultsRef.current;
-                  pendingResultsRef.current = [];
-                  if (flushTimerRef.current) {
-                    clearTimeout(flushTimerRef.current);
-                    flushTimerRef.current = null;
-                  }
-                  startTransition(() => {
-                    setSearchResults((prev) => prev.concat(toAppend));
-                  });
-                }
-                setIsLoading(false);
-                try {
-                  es.close();
-                } catch {}
-                if (eventSourceRef.current === es) {
-                  eventSourceRef.current = null;
-                }
-                break;
+            } catch (err: any) {
+              if (err.name === 'AbortError') return;
+              throw err;
             }
-          } catch {}
-        };
-
-        es.onerror = () => {
-          setIsLoading(false);
-          // 错误时也清空缓冲
-          if (pendingResultsRef.current.length > 0) {
-            const toAppend = pendingResultsRef.current;
-            pendingResultsRef.current = [];
-            if (flushTimerRef.current) {
-              clearTimeout(flushTimerRef.current);
-              flushTimerRef.current = null;
+          })
+          .catch((err) => {
+            if (err.name === 'AbortError') return;
+            setIsLoading(false);
+            // 错误时也清空缓冲
+            if (pendingResultsRef.current.length > 0) {
+              const toAppend = pendingResultsRef.current;
+              pendingResultsRef.current = [];
+              if (flushTimerRef.current) {
+                clearTimeout(flushTimerRef.current);
+                flushTimerRef.current = null;
+              }
+              startTransition(() => {
+                setSearchResults((prev) => prev.concat(toAppend));
+              });
             }
-            startTransition(() => {
-              setSearchResults((prev) => prev.concat(toAppend));
-            });
-          }
-          try {
-            es.close();
-          } catch {}
-          if (eventSourceRef.current === es) {
-            eventSourceRef.current = null;
-          }
-        };
+            if (abortControllerRef.current === controller) {
+              abortControllerRef.current = null;
+            }
+          });
       } else {
         // 传统搜索：使用普通接口
         authFetch(`/api/search?q=${encodeURIComponent(trimmed)}`)
@@ -625,11 +651,9 @@ function SearchPageClient() {
   // 组件卸载时，关闭可能存在的连接
   useEffect(() => {
     return () => {
-      if (eventSourceRef.current) {
-        try {
-          eventSourceRef.current.close();
-        } catch {}
-        eventSourceRef.current = null;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
       if (flushTimerRef.current) {
         clearTimeout(flushTimerRef.current);

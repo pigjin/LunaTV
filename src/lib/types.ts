@@ -102,7 +102,7 @@ export interface SearchResult {
 }
 
 // 豆瓣数据结构
-export interface DoubanItem {
+export interface MovieItem {
   id: string;
   title: string;
   poster: string;
@@ -110,10 +110,10 @@ export interface DoubanItem {
   year: string;
 }
 
-export interface DoubanResult {
+export interface MovieResult {
   code: number;
   message: string;
-  list: DoubanItem[];
+  list: MovieItem[];
 }
 
 // 跳过片头片尾配置数据结构
