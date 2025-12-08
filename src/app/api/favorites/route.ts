@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
+    const id = searchParams.get('id');
+    const source = searchParams.get('source');
 
     // 查询单条收藏
     if (key) {
@@ -50,6 +52,9 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         );
       }
+      const fav = await db.getFavorite(authInfo.username, source, id);
+      return NextResponse.json(fav, { status: 200 });
+    } else if (id && source) {
       const fav = await db.getFavorite(authInfo.username, source, id);
       return NextResponse.json(fav, { status: 200 });
     }
@@ -166,6 +171,8 @@ export async function DELETE(request: NextRequest) {
     const username = authInfo.username;
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
+    const id = searchParams.get('id');
+    const source = searchParams.get('source');
 
     if (key) {
       // 删除单条
@@ -176,6 +183,8 @@ export async function DELETE(request: NextRequest) {
           { status: 400 }
         );
       }
+      await db.deleteFavorite(username, source, id);
+    } else if (id && source) {
       await db.deleteFavorite(username, source, id);
     } else {
       // 清空全部

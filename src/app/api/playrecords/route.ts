@@ -31,6 +31,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const { searchParams } = new URL(request.url);
+    const key = searchParams.get('key');
+    const id = searchParams.get('id');
+    const source = searchParams.get('source');
+
+    if (key) {
+      const [source, id] = key.split('+');
+      if (!source || !id) {
+        return NextResponse.json(
+          { error: 'Invalid key format' },
+          { status: 400 }
+        );
+      }
+      const record = await db.getPlayRecord(authInfo.username, source, id);
+      return NextResponse.json(record, { status: 200 });
+    } else if (source && id) {
+      const record = await db.getPlayRecord(authInfo.username, source, id);
+      return NextResponse.json(record, { status: 200 });
+    }
+
     const records = await db.getAllPlayRecords(authInfo.username);
     return NextResponse.json(records, { status: 200 });
   } catch (err) {
