@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, no-console, @next/next/no-img-element */
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, no-console, @next/next/no-img-element */
 
 'use client';
 
@@ -8,7 +8,7 @@ import { Heart, Radio, Tv } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 
-import { authFetch } from '@/lib/auth-client';
+import { authFetch, getToken } from '@/lib/auth-client';
 import {
   deleteFavorite,
   generateStorageKey,
@@ -48,6 +48,78 @@ interface LiveSource {
   from: 'config' | 'custom';
   channelNumber?: number;
   disabled?: boolean;
+}
+
+type MoontvHlsConfig = {
+  moontvGetToken?: () => string | null;
+  moontvGetSourceKey?: () => string;
+} & Record<string, any>;
+
+class MoontvHlsJsLoader extends Hls.DefaultConfig.loader {
+  constructor(config: any) {
+    super(config);
+    const load = this.load.bind(this);
+    this.load = function (context: any, requestConfig: any, callbacks: any) {
+      const hlsConfig = (this as any).config as MoontvHlsConfig;
+      const token = hlsConfig?.moontvGetToken?.() ?? null;
+      const sourceKey = hlsConfig?.moontvGetSourceKey?.() ?? '';
+
+      const requestUrl = (() => {
+        try {
+          return new URL(context.url, window.location.origin);
+        } catch {
+          return null;
+        }
+      })();
+
+      if (
+        requestUrl &&
+        requestUrl.origin === window.location.origin &&
+        requestUrl.pathname.startsWith('/api/proxy/')
+      ) {
+        if (sourceKey) {
+          requestUrl.searchParams.set('moontv-source', sourceKey);
+        }
+        if (token) {
+          requestUrl.searchParams.set('token', token);
+        }
+        context.url = requestUrl.toString();
+
+        if (token) {
+          const prevXhrSetup = requestConfig?.xhrSetup;
+          requestConfig.xhrSetup = (xhr: XMLHttpRequest, url: string) => {
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            if (typeof prevXhrSetup === 'function') {
+              prevXhrSetup(xhr, url);
+            }
+          };
+        }
+      }
+
+      if ((context as any).type === 'manifest' || (context as any).type === 'level') {
+        const isLiveDirectConnectStr = localStorage.getItem('liveDirectConnect');
+        const isLiveDirectConnect = isLiveDirectConnectStr === 'true';
+        if (isLiveDirectConnect) {
+          const allowCorsUrl = (() => {
+            try {
+              return new URL(context.url, window.location.origin);
+            } catch {
+              return null;
+            }
+          })();
+
+          if (allowCorsUrl) {
+            allowCorsUrl.searchParams.set('allowCORS', 'true');
+            context.url = allowCorsUrl.toString();
+          } else {
+            context.url = context.url + '&allowCORS=true';
+          }
+        }
+      }
+
+      load(context, requestConfig, callbacks);
+    };
+  }
 }
 
 function LivePageClient() {
@@ -826,49 +898,6 @@ function LivePageClient() {
     }
   }, [selectedGroup, groupedChannels]);
 
-  class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
-    constructor(config: any) {
-      super(config);
-      const load = this.load.bind(this);
-      this.load = function (context: any, config: any, callbacks: any) {
-        // 所有的请求都带一个 source 参数
-        try {
-          const url = new URL(context.url);
-          url.searchParams.set(
-            'moontv-source',
-            currentSourceRef.current?.key || ''
-          );
-          context.url = url.toString();
-        } catch (error) {
-          // ignore
-        }
-        // 拦截manifest和level请求
-        if (
-          (context as any).type === 'manifest' ||
-          (context as any).type === 'level'
-        ) {
-          // 判断是否浏览器直连
-          const isLiveDirectConnectStr =
-            localStorage.getItem('liveDirectConnect');
-          const isLiveDirectConnect = isLiveDirectConnectStr === 'true';
-          if (isLiveDirectConnect) {
-            // 浏览器直连，使用 URL 对象处理参数
-            try {
-              const url = new URL(context.url);
-              url.searchParams.set('allowCORS', 'true');
-              context.url = url.toString();
-            } catch (error) {
-              // 如果 URL 解析失败，回退到字符串拼接
-              context.url = context.url + '&allowCORS=true';
-            }
-          }
-        }
-        // 执行原始load方法
-        load(context, config, callbacks);
-      };
-    }
-  }
-
   function m3u8Loader(video: HTMLVideoElement, url: string) {
     if (!Hls) {
       console.error('HLS.js 未加载');
@@ -892,8 +921,10 @@ function LivePageClient() {
       maxBufferLength: 30,
       backBufferLength: 30,
       maxBufferSize: 60 * 1000 * 1000,
-      loader: CustomHlsJsLoader,
-    });
+      loader: MoontvHlsJsLoader,
+      moontvGetToken: getToken,
+      moontvGetSourceKey: () => currentSourceRef.current?.key || '',
+    } as any);
 
     hls.loadSource(url);
     hls.attachMedia(video);
@@ -964,9 +995,12 @@ function LivePageClient() {
       setUnsupportedType(null);
 
       const customType = { m3u8: m3u8Loader };
+      const token = getToken();
       const targetUrl = `/api/proxy/m3u8?url=${encodeURIComponent(
         videoUrl
-      )}&moontv-source=${currentSourceRef.current?.key || ''}`;
+      )}&moontv-source=${currentSourceRef.current?.key || ''}${
+        token ? `&token=${encodeURIComponent(token)}` : ''
+      }`;
       try {
         // 创建新的播放器实例
         Artplayer.USE_RAF = false;
@@ -1041,7 +1075,7 @@ function LivePageClient() {
           console.error('播放器错误:', err);
         });
 
-        if (artPlayerRef.current?.video) {
+        if (type !== 'm3u8' && artPlayerRef.current?.video) {
           ensureVideoSource(
             artPlayerRef.current.video as HTMLVideoElement,
             targetUrl

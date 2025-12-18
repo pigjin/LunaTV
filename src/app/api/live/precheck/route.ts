@@ -22,21 +22,37 @@ export async function GET(request: NextRequest) {
   const ua = liveSource.ua || 'AptvPlayer/1.4.10';
 
   try {
-    const decodedUrl = decodeURIComponent(url);
+    let decodedUrl = url;
+    if (!/^https?:\/\//i.test(decodedUrl)) {
+      try {
+        decodedUrl = decodeURIComponent(url);
+      } catch {
+        decodedUrl = url;
+      }
+    }
+
+    if (!/^https?:\/\//i.test(decodedUrl)) {
+      return NextResponse.json({ error: 'Invalid url' }, { status: 400 });
+    }
 
     const response = await fetch(decodedUrl, {
       cache: 'no-cache',
       redirect: 'follow',
-      credentials: 'same-origin',
       headers: {
         'User-Agent': ua,
+        Accept: '*/*',
       },
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: 'Failed to fetch', message: response.statusText },
-        { status: 500 }
+        {
+          error: 'Failed to fetch',
+          status: response.status,
+          statusText: response.statusText,
+        },
+        { status: response.status }
       );
     }
 
@@ -52,9 +68,12 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json({ success: true, type: 'm3u8' }, { status: 200 });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const isTimeout =
+      error instanceof DOMException && error.name === 'TimeoutError';
     return NextResponse.json(
-      { error: 'Failed to fetch', message: error },
-      { status: 500 }
+      { error: 'Failed to fetch', message },
+      { status: isTimeout ? 504 : 500 }
     );
   }
 }

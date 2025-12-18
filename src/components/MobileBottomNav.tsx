@@ -5,7 +5,7 @@
 import { Cat, Clover, Film, Home, Radio, Star, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 interface MobileBottomNavProps {
   /**
@@ -20,48 +20,51 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
   // 当前激活路径：优先使用传入的 activePath，否则回退到浏览器地址
   const currentActive = activePath ?? pathname;
 
-  const [navItems, setNavItems] = useState([
-    { icon: Home, label: '首页', href: '/' },
-    {
-      icon: Film,
-      label: '电影',
-      href: '/douban?type=movie',
-    },
-    {
-      icon: Tv,
-      label: '剧集',
-      href: '/douban?type=tv',
-    },
-    {
-      icon: Cat,
-      label: '动漫',
-      href: '/douban?type=anime',
-    },
-    {
-      icon: Clover,
-      label: '综艺',
-      href: '/douban?type=show',
-    },
-    {
-      icon: Radio,
-      label: '直播',
-      href: '/live',
-    },
-  ]);
+  const [navItems] = useState(() => {
+    const items = [
+      { icon: Home, label: '首页', href: '/' },
+      {
+        icon: Film,
+        label: '电影',
+        href: '/douban?type=movie',
+      },
+      {
+        icon: Tv,
+        label: '剧集',
+        href: '/douban?type=tv',
+      },
+      {
+        icon: Cat,
+        label: '动漫',
+        href: '/douban?type=anime',
+      },
+      {
+        icon: Clover,
+        label: '综艺',
+        href: '/douban?type=show',
+      },
+      {
+        icon: Radio,
+        label: '直播',
+        href: '/live',
+      },
+    ];
 
-  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return items;
+    }
+
     const runtimeConfig = (window as any).RUNTIME_CONFIG;
     if (runtimeConfig?.CUSTOM_CATEGORIES?.length > 0) {
-      setNavItems((prevItems) => [
-        ...prevItems,
-        {
-          icon: Star,
-          label: '自定义',
-          href: '/douban?type=custom',
-        },
-      ]);
+      items.push({
+        icon: Star,
+        label: '自定义',
+        href: '/douban?type=custom',
+      });
     }
-  }, []);
+
+    return items;
+  });
 
   const isActive = (href: string) => {
     const typeMatch = href.match(/type=([^&]+)/)?.[1];

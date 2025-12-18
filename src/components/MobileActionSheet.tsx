@@ -47,7 +47,9 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
     let timer: NodeJS.Timeout;
 
     if (isOpen) {
-      setIsVisible(true);
+      Promise.resolve().then(() => {
+        setIsVisible(true);
+      });
       // 使用双重 requestAnimationFrame 确保DOM完全渲染
       animationId = requestAnimationFrame(() => {
         animationId = requestAnimationFrame(() => {
@@ -55,7 +57,9 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
         });
       });
     } else {
-      setIsAnimating(false);
+      Promise.resolve().then(() => {
+        setIsAnimating(false);
+      });
       // 等待动画完成后隐藏组件
       timer = setTimeout(() => {
         setIsVisible(false);

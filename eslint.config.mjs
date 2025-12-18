@@ -1,27 +1,22 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
 import js from "@eslint/js";
+import next from "eslint-config-next";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import prettier from "eslint-config-prettier/flat";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
 import tseslint from "typescript-eslint";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-});
+import unusedImports from "eslint-plugin-unused-imports";
 
 const eslintConfig = [
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  ...compat.extends(
-    "next",
-    "next/core-web-vitals",
-    "prettier"
-  ),
-  ...compat.plugins("simple-import-sort", "unused-imports"),
+  ...next,
+  ...nextCoreWebVitals,
+  prettier,
   {
+    plugins: {
+      "simple-import-sort": simpleImportSort,
+      "unused-imports": unusedImports,
+    },
     rules: {
       "no-unused-vars": "off",
       "no-console": "warn",

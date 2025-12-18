@@ -25,7 +25,9 @@ export function ThemeToggle() {
   };
 
   useEffect(() => {
-    setMounted(true);
+    Promise.resolve().then(() => {
+      setMounted(true);
+    });
   }, []);
 
   // 监听主题变化和路由变化，确保主题色始终同步

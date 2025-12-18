@@ -22,7 +22,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const isPublicPath = PUBLIC_PATHS.some(path => pathname.startsWith(path));
 
     if (isPublicPath) {
-      setAuthorized(true);
+      Promise.resolve().then(() => {
+        setAuthorized(true);
+      });
       return;
     }
 
@@ -34,7 +36,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       loginUrl.searchParams.set('redirect', pathname);
       router.replace(loginUrl.toString());
     } else {
-      setAuthorized(true);
+      Promise.resolve().then(() => {
+        setAuthorized(true);
+      });
     }
   }, [pathname, router]);
 

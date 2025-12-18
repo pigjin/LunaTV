@@ -145,31 +145,33 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   // 当有预计算结果时，先合并到videoInfoMap中
   useEffect(() => {
     if (precomputedVideoInfo && precomputedVideoInfo.size > 0) {
-      // 原子性地更新两个状态，避免时序问题
-      setVideoInfoMap((prev) => {
-        const newMap = new Map(prev);
-        precomputedVideoInfo.forEach((value, key) => {
-          newMap.set(key, value);
+      const timerId = setTimeout(() => {
+        setVideoInfoMap((prev) => {
+          const newMap = new Map(prev);
+          precomputedVideoInfo.forEach((value, key) => {
+            newMap.set(key, value);
+          });
+          return newMap;
         });
-        return newMap;
-      });
 
-      setAttemptedSources((prev) => {
-        const newSet = new Set(prev);
+        setAttemptedSources((prev) => {
+          const newSet = new Set(prev);
+          precomputedVideoInfo.forEach((info, key) => {
+            if (!info.hasError) {
+              newSet.add(key);
+            }
+          });
+          return newSet;
+        });
+
         precomputedVideoInfo.forEach((info, key) => {
           if (!info.hasError) {
-            newSet.add(key);
+            attemptedSourcesRef.current.add(key);
           }
         });
-        return newSet;
-      });
+      }, 0);
 
-      // 同步更新 ref，确保 getVideoInfo 能立即看到更新
-      precomputedVideoInfo.forEach((info, key) => {
-        if (!info.hasError) {
-          attemptedSourcesRef.current.add(key);
-        }
-      });
+      return () => clearTimeout(timerId);
     }
   }, [precomputedVideoInfo]);
 

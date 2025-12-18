@@ -92,7 +92,6 @@ export default function SearchSuggestions({
 
   useEffect(() => {
     if (!query.trim() || !isVisible) {
-      setSuggestions([]);
       return;
     }
     debouncedFetchSuggestions(query);

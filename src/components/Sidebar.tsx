@@ -63,30 +63,26 @@ declare global {
   }
 }
 
-const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
+const Sidebar = ({ onToggle, activePath }: SidebarProps) => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   // 若同一次 SPA 会话中已经读取过折叠状态，则直接复用，避免闪烁
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    if (
-      typeof window !== 'undefined' &&
-      typeof window.__sidebarCollapsed === 'boolean'
-    ) {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    if (typeof window.__sidebarCollapsed === 'boolean') {
       return window.__sidebarCollapsed;
     }
-    return false; // 默认展开
-  });
-
-  // 首次挂载时读取 localStorage，以便刷新后仍保持上次的折叠状态
-  useLayoutEffect(() => {
     const saved = localStorage.getItem('sidebarCollapsed');
     if (saved !== null) {
       const val = JSON.parse(saved);
-      setIsCollapsed(val);
       window.__sidebarCollapsed = val;
+      return val;
     }
-  }, []);
+    return false;
+  });
 
   // 当折叠状态变化时，同步到 <html> data 属性，供首屏 CSS 使用
   useLayoutEffect(() => {
@@ -99,22 +95,9 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
     }
   }, [isCollapsed]);
 
-  const [active, setActive] = useState(activePath);
-
-  useEffect(() => {
-    // 优先使用传入的 activePath
-    if (activePath) {
-      setActive(activePath);
-    } else {
-      // 否则使用当前路径
-      const getCurrentFullPath = () => {
-        const queryString = searchParams.toString();
-        return queryString ? `${pathname}?${queryString}` : pathname;
-      };
-      const fullPath = getCurrentFullPath();
-      setActive(fullPath);
-    }
-  }, [activePath, pathname, searchParams]);
+  const queryString = searchParams.toString();
+  const fullPath = queryString ? `${pathname}?${queryString}` : pathname;
+  const active = activePath ?? fullPath;
 
   const handleToggle = useCallback(() => {
     const newState = !isCollapsed;
@@ -134,47 +117,50 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
     isCollapsed,
   };
 
-  const [menuItems, setMenuItems] = useState([
-    {
-      icon: Film,
-      label: '电影',
-      href: '/douban?type=movie',
-    },
-    {
-      icon: Tv,
-      label: '剧集',
-      href: '/douban?type=tv',
-    },
-    {
-      icon: Cat,
-      label: '动漫',
-      href: '/douban?type=anime',
-    },
-    {
-      icon: Clover,
-      label: '综艺',
-      href: '/douban?type=show',
-    },
-    {
-      icon: Radio,
-      label: '直播',
-      href: '/live',
-    },
-  ]);
+  const [menuItems] = useState(() => {
+    const items = [
+      {
+        icon: Film,
+        label: '电影',
+        href: '/douban?type=movie',
+      },
+      {
+        icon: Tv,
+        label: '剧集',
+        href: '/douban?type=tv',
+      },
+      {
+        icon: Cat,
+        label: '动漫',
+        href: '/douban?type=anime',
+      },
+      {
+        icon: Clover,
+        label: '综艺',
+        href: '/douban?type=show',
+      },
+      {
+        icon: Radio,
+        label: '直播',
+        href: '/live',
+      },
+    ];
 
-  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return items;
+    }
+
     const runtimeConfig = (window as any).RUNTIME_CONFIG;
     if (runtimeConfig?.CUSTOM_CATEGORIES?.length > 0) {
-      setMenuItems((prevItems) => [
-        ...prevItems,
-        {
-          icon: Star,
-          label: '自定义',
-          href: '/douban?type=custom',
-        },
-      ]);
+      items.push({
+        icon: Star,
+        label: '自定义',
+        href: '/douban?type=custom',
+      });
     }
-  }, []);
+
+    return items;
+  });
 
   return (
     <SidebarContext.Provider value={contextValue}>
@@ -216,7 +202,6 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
             <nav className='px-2 mt-4 space-y-1'>
               <Link
                 href='/'
-                onClick={() => setActive('/')}
                 data-active={active === '/'}
                 className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-gray-700 hover:bg-gray-100/30 hover:text-green-600 data-[active=true]:bg-green-500/20 data-[active=true]:text-green-700 font-medium transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-green-400 dark:data-[active=true]:bg-green-500/10 dark:data-[active=true]:text-green-400 ${
                   isCollapsed ? 'w-full max-w-none mx-0' : 'mx-0'
@@ -236,7 +221,6 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                 onClick={(e) => {
                   e.preventDefault();
                   handleSearchClick();
-                  setActive('/search');
                 }}
                 data-active={active === '/search'}
                 className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-gray-700 hover:bg-gray-100/30 hover:text-green-600 data-[active=true]:bg-green-500/20 data-[active=true]:text-green-700 font-medium transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-green-400 dark:data-[active=true]:bg-green-500/10 dark:data-[active=true]:text-green-400 ${
@@ -274,7 +258,6 @@ const Sidebar = ({ onToggle, activePath = '/' }: SidebarProps) => {
                     <Link
                       key={item.label}
                       href={item.href}
-                      onClick={() => setActive(item.href)}
                       data-active={isActive}
                       className={`group flex items-center rounded-lg px-2 py-2 pl-4 text-sm text-gray-700 hover:bg-gray-100/30 hover:text-green-600 data-[active=true]:bg-green-500/20 data-[active=true]:text-green-700 transition-colors duration-200 min-h-[40px] dark:text-gray-300 dark:hover:text-green-400 dark:data-[active=true]:bg-green-500/10 dark:data-[active=true]:text-green-400 ${
                         isCollapsed ? 'w-full max-w-none mx-0' : 'mx-0'

@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     if (!response.ok) {
       return NextResponse.json(
         { error: 'Failed to fetch m3u8' },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -64,7 +64,7 @@ export async function GET(request: Request) {
         m3u8Content,
         baseUrl,
         request,
-        allowCORS
+        allowCORS,
       );
 
       const headers = new Headers();
@@ -73,12 +73,12 @@ export async function GET(request: Request) {
       headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       headers.set(
         'Access-Control-Allow-Headers',
-        'Content-Type, Range, Origin, Accept'
+        'Content-Type, Range, Origin, Accept',
       );
       headers.set('Cache-Control', 'no-cache');
       headers.set(
         'Access-Control-Expose-Headers',
-        'Content-Length, Content-Range'
+        'Content-Length, Content-Range',
       );
       return new Response(modifiedContent, { headers });
     }
@@ -86,18 +86,18 @@ export async function GET(request: Request) {
     const headers = new Headers();
     headers.set(
       'Content-Type',
-      response.headers.get('Content-Type') || 'application/vnd.apple.mpegurl'
+      response.headers.get('Content-Type') || 'application/vnd.apple.mpegurl',
     );
     headers.set('Access-Control-Allow-Origin', '*');
     headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     headers.set(
       'Access-Control-Allow-Headers',
-      'Content-Type, Range, Origin, Accept'
+      'Content-Type, Range, Origin, Accept',
     );
     headers.set('Cache-Control', 'no-cache');
     headers.set(
       'Access-Control-Expose-Headers',
-      'Content-Length, Content-Range'
+      'Content-Length, Content-Range',
     );
 
     // 直接返回视频流
@@ -105,10 +105,10 @@ export async function GET(request: Request) {
       status: 200,
       headers,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Failed to fetch m3u8' },
-      { status: 500 }
+      { status: 500 },
     );
   } finally {
     // 确保 response 被正确关闭以释放资源
@@ -127,8 +127,12 @@ function rewriteM3U8Content(
   content: string,
   baseUrl: string,
   req: Request,
-  allowCORS: boolean
+  allowCORS: boolean,
 ) {
+  const reqUrl = new URL(req.url);
+  const token = reqUrl.searchParams.get('token');
+  const source = reqUrl.searchParams.get('moontv-source');
+
   // 从 referer 头提取协议信息
   const referer = req.headers.get('referer');
   let protocol = 'http';
@@ -136,13 +140,29 @@ function rewriteM3U8Content(
     try {
       const refererUrl = new URL(referer);
       protocol = refererUrl.protocol.replace(':', '');
-    } catch (error) {
+    } catch {
       // ignore
     }
   }
 
   const host = req.headers.get('host');
   const proxyBase = `${protocol}://${host}/api/proxy`;
+
+  const buildProxyUrl = (path: 'segment' | 'key' | 'm3u8', target: string) => {
+    if (allowCORS) {
+      return target;
+    }
+
+    const u = new URL(`${proxyBase}/${path}`);
+    u.searchParams.set('url', target);
+    if (source) {
+      u.searchParams.set('moontv-source', source);
+    }
+    if (token) {
+      u.searchParams.set('token', token);
+    }
+    return u.toString();
+  };
 
   const lines = content.split('\n');
   const rewrittenLines: string[] = [];
@@ -153,21 +173,18 @@ function rewriteM3U8Content(
     // 处理 TS 片段 URL 和其他媒体文件
     if (line && !line.startsWith('#')) {
       const resolvedUrl = resolveUrl(baseUrl, line);
-      const proxyUrl = allowCORS
-        ? resolvedUrl
-        : `${proxyBase}/segment?url=${encodeURIComponent(resolvedUrl)}`;
-      rewrittenLines.push(proxyUrl);
+      rewrittenLines.push(buildProxyUrl('segment', resolvedUrl));
       continue;
     }
 
     // 处理 EXT-X-MAP 标签中的 URI
     if (line.startsWith('#EXT-X-MAP:')) {
-      line = rewriteMapUri(line, baseUrl, proxyBase);
+      line = rewriteMapUri(line, baseUrl, buildProxyUrl);
     }
 
     // 处理 EXT-X-KEY 标签中的 URI
     if (line.startsWith('#EXT-X-KEY:')) {
-      line = rewriteKeyUri(line, baseUrl, proxyBase);
+      line = rewriteKeyUri(line, baseUrl, buildProxyUrl);
     }
 
     // 处理嵌套的 M3U8 文件 (EXT-X-STREAM-INF)
@@ -179,10 +196,7 @@ function rewriteM3U8Content(
         const nextLine = lines[i].trim();
         if (nextLine && !nextLine.startsWith('#')) {
           const resolvedUrl = resolveUrl(baseUrl, nextLine);
-          const proxyUrl = `${proxyBase}/m3u8?url=${encodeURIComponent(
-            resolvedUrl
-          )}`;
-          rewrittenLines.push(proxyUrl);
+          rewrittenLines.push(buildProxyUrl('m3u8', resolvedUrl));
         } else {
           rewrittenLines.push(nextLine);
         }
@@ -196,25 +210,31 @@ function rewriteM3U8Content(
   return rewrittenLines.join('\n');
 }
 
-function rewriteMapUri(line: string, baseUrl: string, proxyBase: string) {
+function rewriteMapUri(
+  line: string,
+  baseUrl: string,
+  buildProxyUrl: (path: 'segment' | 'key' | 'm3u8', target: string) => string,
+) {
   const uriMatch = line.match(/URI="([^"]+)"/);
   if (uriMatch) {
     const originalUri = uriMatch[1];
     const resolvedUrl = resolveUrl(baseUrl, originalUri);
-    const proxyUrl = `${proxyBase}/segment?url=${encodeURIComponent(
-      resolvedUrl
-    )}`;
+    const proxyUrl = buildProxyUrl('segment', resolvedUrl);
     return line.replace(uriMatch[0], `URI="${proxyUrl}"`);
   }
   return line;
 }
 
-function rewriteKeyUri(line: string, baseUrl: string, proxyBase: string) {
+function rewriteKeyUri(
+  line: string,
+  baseUrl: string,
+  buildProxyUrl: (path: 'segment' | 'key' | 'm3u8', target: string) => string,
+) {
   const uriMatch = line.match(/URI="([^"]+)"/);
   if (uriMatch) {
     const originalUri = uriMatch[1];
     const resolvedUrl = resolveUrl(baseUrl, originalUri);
-    const proxyUrl = `${proxyBase}/key?url=${encodeURIComponent(resolvedUrl)}`;
+    const proxyUrl = buildProxyUrl('key', resolvedUrl);
     return line.replace(uriMatch[0], `URI="${proxyUrl}"`);
   }
   return line;

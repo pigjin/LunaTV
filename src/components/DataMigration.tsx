@@ -49,14 +49,18 @@ const AlertModal = ({
   // 控制动画状态
   useEffect(() => {
     if (isOpen) {
-      setIsVisible(true);
+      Promise.resolve().then(() => {
+        setIsVisible(true);
+      });
       if (timer) {
         setTimeout(() => {
           onClose();
         }, timer);
       }
     } else {
-      setIsVisible(false);
+      Promise.resolve().then(() => {
+        setIsVisible(false);
+      });
     }
   }, [isOpen, timer, onClose]);
 

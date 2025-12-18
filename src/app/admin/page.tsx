@@ -133,14 +133,18 @@ const AlertModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      setIsVisible(true);
+      Promise.resolve().then(() => {
+        setIsVisible(true);
+      });
       if (timer) {
         setTimeout(() => {
           onClose();
         }, timer);
       }
     } else {
-      setIsVisible(false);
+      Promise.resolve().then(() => {
+        setIsVisible(false);
+      });
     }
   }, [isOpen, timer, onClose]);
 
@@ -2702,104 +2706,134 @@ const VideoSourceConfig = ({
       setValidationResults(initialResults);
 
       try {
-        // 使用EventSource接收流式数据
-        const eventSource = new EventSource(
-          `/api/admin/source/validate?q=${encodeURIComponent(
-            searchKeyword.trim()
-          )}`
-        );
-
-        eventSource.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-
-            switch (data.type) {
-              case 'start':
-                console.log(`开始检测 ${data.totalSources} 个视频源`);
-                break;
-
-              case 'source_result':
-              case 'source_error':
-                // 更新验证结果
-                setValidationResults((prev) => {
-                  const existing = prev.find((r) => r.key === data.source);
-                  if (existing) {
-                    return prev.map((r) =>
-                      r.key === data.source
-                        ? {
-                            key: data.source,
-                            name:
-                              sources.find((s) => s.key === data.source)
-                                ?.name || data.source,
-                            status: data.status,
-                            message:
-                              data.status === 'valid'
-                                ? '搜索正常'
-                                : data.status === 'no_results'
-                                ? '无法搜索到结果'
-                                : '连接失败',
-                            resultCount: data.status === 'valid' ? 1 : 0,
-                          }
-                        : r
-                    );
-                  } else {
-                    return [
-                      ...prev,
-                      {
-                        key: data.source,
-                        name:
-                          sources.find((s) => s.key === data.source)?.name ||
-                          data.source,
-                        status: data.status,
-                        message:
-                          data.status === 'valid'
-                            ? '搜索正常'
-                            : data.status === 'no_results'
-                            ? '无法搜索到结果'
-                            : '连接失败',
-                        resultCount: data.status === 'valid' ? 1 : 0,
-                      },
-                    ];
+        const updateResult = (data: {
+          source: string;
+          status: 'validating' | 'valid' | 'no_results' | 'invalid';
+        }) => {
+          setValidationResults((prev) =>
+            prev.map((r) =>
+              r.key === data.source
+                ? {
+                    key: data.source,
+                    name:
+                      sources.find((s) => s.key === data.source)?.name ||
+                      data.source,
+                    status: data.status,
+                    message:
+                      data.status === 'valid'
+                        ? '搜索正常'
+                        : data.status === 'no_results'
+                        ? '无法搜索到结果'
+                        : data.status === 'invalid'
+                        ? '连接失败'
+                        : '检测中...',
+                    resultCount: data.status === 'valid' ? 1 : 0,
                   }
-                });
-                break;
-
-              case 'complete':
-                console.log(
-                  `检测完成，共检测 ${data.completedSources} 个视频源`
-                );
-                eventSource.close();
-                setIsValidating(false);
-                break;
-            }
-          } catch (error) {
-            console.error('解析EventSource数据失败:', error);
-          }
+                : r
+            )
+          );
         };
 
-        eventSource.onerror = (error) => {
-          console.error('EventSource错误:', error);
-          eventSource.close();
-          setIsValidating(false);
-          showAlert({
-            type: 'error',
-            title: '验证失败',
-            message: '连接错误，请重试',
-          });
-        };
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 60000);
 
-        // 设置超时，防止长时间等待
-        setTimeout(() => {
-          if (eventSource.readyState === EventSource.OPEN) {
-            eventSource.close();
+        try {
+          const response = await authFetch(
+            `/api/admin/source/validate?q=${encodeURIComponent(
+              searchKeyword.trim()
+            )}`,
+            { signal: controller.signal }
+          );
+
+          if (response.status === 401) {
             setIsValidating(false);
             showAlert({
-              type: 'warning',
-              title: '验证超时',
-              message: '检测超时，请重试',
+              type: 'error',
+              title: '未登录或登录已过期',
+              message: '请重新登录后再试',
             });
+            return;
           }
-        }, 60000); // 60秒超时
+
+          if (!response.ok || !response.body) {
+            throw new Error('连接错误，请重试');
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let shouldStop = false;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const chunks = buffer.split('\n\n');
+            buffer = chunks.pop() || '';
+
+            for (const chunk of chunks) {
+              const dataLines = chunk
+                .split('\n')
+                .filter((l) => l.startsWith('data: '))
+                .map((l) => l.slice(6));
+
+              if (dataLines.length === 0) continue;
+
+              try {
+                const data = JSON.parse(dataLines.join('\n')) as any;
+                switch (data.type) {
+                  case 'start':
+                    console.log(`开始检测 ${data.totalSources} 个视频源`);
+                    break;
+                  case 'source_result':
+                  case 'source_error':
+                    updateResult({
+                      source: data.source,
+                      status: data.status,
+                    });
+                    break;
+                  case 'complete':
+                    console.log(
+                      `检测完成，共检测 ${data.completedSources} 个视频源`
+                    );
+                    shouldStop = true;
+                    setIsValidating(false);
+                    break;
+                }
+              } catch (error) {
+                console.error('解析流式数据失败:', error);
+              }
+            }
+
+            if (shouldStop) {
+              try {
+                await reader.cancel();
+              } catch (e) {
+                void e;
+              }
+              break;
+            }
+          }
+
+          if (!shouldStop) {
+            setIsValidating(false);
+          }
+        } catch (error: any) {
+          setIsValidating(false);
+          showAlert({
+            type: error?.name === 'AbortError' ? 'warning' : 'error',
+            title: error?.name === 'AbortError' ? '验证超时' : '验证失败',
+            message:
+              error?.name === 'AbortError'
+                ? '检测超时，请重试'
+                : error instanceof Error
+                ? error.message
+                : '连接错误，请重试',
+          });
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
       } catch (error) {
         setIsValidating(false);
         showAlert({

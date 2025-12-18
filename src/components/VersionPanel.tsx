@@ -12,7 +12,7 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { changelog, ChangelogEntry } from '@/lib/changelog';
@@ -32,6 +32,68 @@ interface RemoteChangelogEntry {
   fixed: string[];
 }
 
+const parseRemoteChangelog = (content: string): RemoteChangelogEntry[] => {
+  const lines = content.split('\n');
+  const versions: RemoteChangelogEntry[] = [];
+  let currentVersion: RemoteChangelogEntry | null = null;
+  let currentSection: string | null = null;
+  let inVersionContent = false;
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    const versionMatch = trimmedLine.match(
+      /^## \[([\d.]+)\] - (\d{4}-\d{2}-\d{2})$/
+    );
+    if (versionMatch) {
+      if (currentVersion) {
+        versions.push(currentVersion);
+      }
+
+      currentVersion = {
+        version: versionMatch[1],
+        date: versionMatch[2],
+        added: [],
+        changed: [],
+        fixed: [],
+      };
+      currentSection = null;
+      inVersionContent = true;
+      continue;
+    }
+
+    if (inVersionContent && currentVersion) {
+      if (trimmedLine === '### Added') {
+        currentSection = 'added';
+        continue;
+      } else if (trimmedLine === '### Changed') {
+        currentSection = 'changed';
+        continue;
+      } else if (trimmedLine === '### Fixed') {
+        currentSection = 'fixed';
+        continue;
+      }
+
+      if (trimmedLine.startsWith('- ') && currentSection) {
+        const entry = trimmedLine.substring(2);
+        if (currentSection === 'added') {
+          currentVersion.added.push(entry);
+        } else if (currentSection === 'changed') {
+          currentVersion.changed.push(entry);
+        } else if (currentSection === 'fixed') {
+          currentVersion.fixed.push(entry);
+        }
+      }
+    }
+  }
+
+  if (currentVersion) {
+    versions.push(currentVersion);
+  }
+
+  return versions;
+};
+
 export const VersionPanel: React.FC<VersionPanelProps> = ({
   isOpen,
   onClose,
@@ -44,8 +106,18 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
 
   // 确保组件已挂载
   useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) {
+        setMounted(true);
+      }
+    });
+    return () => {
+      active = false;
+      Promise.resolve().then(() => {
+        setMounted(false);
+      });
+    };
   }, []);
 
   // Body 滚动锁定 - 使用 overflow 方式避免布局问题
@@ -71,21 +143,14 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
   }, [isOpen]);
 
   // 获取远程变更日志
-  useEffect(() => {
-    if (isOpen) {
-      fetchRemoteChangelog();
-    }
-  }, [isOpen]);
-
-  // 获取远程变更日志
-  const fetchRemoteChangelog = async () => {
+  const fetchRemoteChangelog = useCallback(async () => {
     try {
       const response = await fetch(
         'https://raw.githubusercontent.com/MoonTechLab/LunaTV/main/CHANGELOG'
       );
       if (response.ok) {
         const content = await response.text();
-        const parsed = parseChangelog(content);
+        const parsed = parseRemoteChangelog(content);
         setRemoteChangelog(parsed);
 
         // 检查是否有更新
@@ -106,75 +171,16 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
     } catch (error) {
       console.error('获取远程变更日志失败:', error);
     }
-  };
+  }, []);
 
-  // 解析变更日志格式
-  const parseChangelog = (content: string): RemoteChangelogEntry[] => {
-    const lines = content.split('\n');
-    const versions: RemoteChangelogEntry[] = [];
-    let currentVersion: RemoteChangelogEntry | null = null;
-    let currentSection: string | null = null;
-    let inVersionContent = false;
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-
-      // 匹配版本行: ## [X.Y.Z] - YYYY-MM-DD
-      const versionMatch = trimmedLine.match(
-        /^## \[([\d.]+)\] - (\d{4}-\d{2}-\d{2})$/
-      );
-      if (versionMatch) {
-        if (currentVersion) {
-          versions.push(currentVersion);
-        }
-
-        currentVersion = {
-          version: versionMatch[1],
-          date: versionMatch[2],
-          added: [],
-          changed: [],
-          fixed: [],
-        };
-        currentSection = null;
-        inVersionContent = true;
-        continue;
-      }
-
-      // 如果遇到下一个版本或到达文件末尾，停止处理当前版本
-      if (inVersionContent && currentVersion) {
-        // 匹配章节标题
-        if (trimmedLine === '### Added') {
-          currentSection = 'added';
-          continue;
-        } else if (trimmedLine === '### Changed') {
-          currentSection = 'changed';
-          continue;
-        } else if (trimmedLine === '### Fixed') {
-          currentSection = 'fixed';
-          continue;
-        }
-
-        // 匹配条目: - 内容
-        if (trimmedLine.startsWith('- ') && currentSection) {
-          const entry = trimmedLine.substring(2);
-          if (currentSection === 'added') {
-            currentVersion.added.push(entry);
-          } else if (currentSection === 'changed') {
-            currentVersion.changed.push(entry);
-          } else if (currentSection === 'fixed') {
-            currentVersion.fixed.push(entry);
-          }
-        }
-      }
+  useEffect(() => {
+    if (isOpen) {
+      const timerId = setTimeout(() => {
+        fetchRemoteChangelog();
+      }, 0);
+      return () => clearTimeout(timerId);
     }
-
-    // 添加最后一个版本
-    if (currentVersion) {
-      versions.push(currentVersion);
-    }
-
-    return versions;
-  };
+  }, [fetchRemoteChangelog, isOpen]);
 
   // 渲染变更日志条目
   const renderChangelogEntry = (

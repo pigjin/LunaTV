@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyJWT } from '@/lib/jwt';
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -16,6 +17,23 @@ export async function proxy(request: NextRequest) {
     // 如果没有设置密码，重定向到警告页面
     const warningUrl = new URL('/warning', request.url);
     return NextResponse.redirect(warningUrl);
+  }
+
+  if (pathname.startsWith('/api/proxy/')) {
+    const authInfo = await getAuthInfoFromCookie(request);
+    if (authInfo) {
+      return NextResponse.next();
+    }
+
+    const token = request.nextUrl.searchParams.get('token');
+    if (token) {
+      const payload = await verifyJWT(token);
+      if (payload) {
+        return NextResponse.next();
+      }
+    }
+
+    return new NextResponse('Unauthorized', { status: 401 });
   }
 
   // 1. 对于 API 路由：强制要求 Header JWT 鉴权
