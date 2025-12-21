@@ -2,16 +2,75 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuth } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { SkipConfig } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/skipconfigs:
+ *   get:
+ *     summary: 获取跳过片头片尾配置
+ *     description: 获取用户的跳过片头片尾配置，支持查询全部或单个配置
+ *     tags:
+ *       - 其他
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: source
+ *         schema:
+ *           type: string
+ *         description: 视频来源（需配合id使用）
+ *       - in: query
+ *         name: id
+ *         schema:
+ *           type: string
+ *         description: 视频ID（需配合source使用）
+ *     responses:
+ *       200:
+ *         description: 返回配置信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - type: object
+ *                   additionalProperties:
+ *                     type: object
+ *                     properties:
+ *                       enable:
+ *                         type: boolean
+ *                       intro_time:
+ *                         type: number
+ *                       outro_time:
+ *                         type: number
+ *                 - type: object
+ *                   properties:
+ *                     enable:
+ *                       type: boolean
+ *                     intro_time:
+ *                       type: number
+ *                     outro_time:
+ *                       type: number
+ *       401:
+ *         description: 未授权或用户不存在/被封禁
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function GET(request: NextRequest) {
   try {
-    const authInfo = await getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
@@ -52,9 +111,70 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * @swagger
+ * /api/skipconfigs:
+ *   post:
+ *     summary: 保存跳过片头片尾配置
+ *     description: 保存或更新视频的跳过片头片尾配置
+ *     tags:
+ *       - 其他
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - key
+ *               - config
+ *             properties:
+ *               key:
+ *                 type: string
+ *                 description: 配置键值，格式为 source+id
+ *               config:
+ *                 type: object
+ *                 properties:
+ *                   enable:
+ *                     type: boolean
+ *                     description: 是否启用
+ *                   intro_time:
+ *                     type: number
+ *                     description: 片头时长（秒）
+ *                   outro_time:
+ *                     type: number
+ *                     description: 片尾时长（秒）
+ *     responses:
+ *       200:
+ *         description: 保存成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: 参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未授权或用户不存在/被封禁
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function POST(request: NextRequest) {
   try {
-    const authInfo = await getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
@@ -105,9 +225,52 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * @swagger
+ * /api/skipconfigs:
+ *   delete:
+ *     summary: 删除跳过片头片尾配置
+ *     description: 删除指定视频的跳过片头片尾配置
+ *     tags:
+ *       - 其他
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: key
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 配置键值，格式为 source+id
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: 参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未授权或用户不存在/被封禁
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function DELETE(request: NextRequest) {
   try {
-    const authInfo = await getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }

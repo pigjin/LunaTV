@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
+import { getAuthInfoFromStorage } from '@/lib/auth';
 import { authFetch, removeToken } from '@/lib/auth-client';
 import { CURRENT_VERSION } from '@/lib/version';
 import { checkForUpdates, UpdateStatus } from '@/lib/version_check';
@@ -121,7 +121,7 @@ export const UserMenu: React.FC = () => {
   // 获取认证信息和存储类型
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const auth = getAuthInfoFromBrowserCookie();
+      const auth = getAuthInfoFromStorage();
       setAuthInfo(auth);
 
       const type =
@@ -265,9 +265,16 @@ export const UserMenu: React.FC = () => {
 
   const handleLogout = async () => {
     try {
+      // 获取 refresh token 并发送到服务端清除
+      const { getRefreshToken } = await import('@/lib/auth-client');
+      const refreshToken = getRefreshToken();
+      
       await authFetch('/api/logout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          refreshToken ? { refreshToken } : {}
+        ),
       });
     } catch (error) {
       console.error('注销请求失败:', error);

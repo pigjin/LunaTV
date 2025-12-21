@@ -1,5 +1,4 @@
 /** @type {import('next').NextConfig} */
-/* eslint-disable @typescript-eslint/no-var-requires */
 
 const nextConfig = {
   output: 'standalone',
@@ -20,27 +19,25 @@ const nextConfig = {
       },
     ],
   },
-
-  experimental: {
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: [
-            {
-              loader: '@svgr/webpack',
-              options: {
-                dimensions: false,
-                titleProp: true,
-              },
+  turbopack: {
+    rules: {
+      '*.svg': {
+        loaders: [
+          {
+            loader: '@svgr/webpack',
+            options: {
+              dimensions: false,
+              titleProp: true,
             },
-          ],
-          as: '*.js',
-        },
+          },
+        ],
+        as: '*.js',
       },
     },
   },
 };
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const withPWA = require('next-pwa')({
   dest: 'public',
   disable: process.env.NODE_ENV === 'development',

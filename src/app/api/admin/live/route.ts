@@ -2,17 +2,95 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuth } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { deleteCachedLiveChannels, refreshLiveChannels } from '@/lib/live';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/admin/live:
+ *   post:
+ *     summary: 管理直播源
+ *     description: 管理员接口，支持添加、删除、启用、禁用、编辑和排序直播源
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [add, delete, enable, disable, edit, sort]
+ *                 description: 操作类型
+ *               key:
+ *                 type: string
+ *                 description: 直播源标识（add/edit/delete/enable/disable 时必需）
+ *               name:
+ *                 type: string
+ *                 description: 直播源名称（add/edit 时必需）
+ *               url:
+ *                 type: string
+ *                 description: 直播源URL（add/edit 时必需）
+ *               ua:
+ *                 type: string
+ *                 description: User-Agent（可选）
+ *               epg:
+ *                 type: string
+ *                 description: EPG地址（可选）
+ *               order:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 排序后的key列表（sort 时必需）
+ *     responses:
+ *       200:
+ *         description: 操作成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: 参数错误或操作不允许
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 权限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 配置或直播源不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 操作失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   try {
     // 权限检查
-    const authInfo = await getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     const username = authInfo?.username;
     const config = await getConfig();
     if (username !== process.env.USERNAME) {

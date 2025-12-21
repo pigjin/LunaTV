@@ -106,8 +106,10 @@ function LoginPageClient() {
 
       if (res.ok) {
         const data = await res.json();
-        if (data.token) {
-          localStorage.setItem('token', data.token);
+        // 使用 OAuth 2.0 token 存储方式
+        if (data.accessToken) {
+          const { setTokens } = await import('@/lib/auth-client');
+          setTokens(data.accessToken, data.refreshToken);
         }
         const redirect = searchParams.get('redirect') || '/';
         router.replace(redirect);

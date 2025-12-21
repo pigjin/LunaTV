@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuth } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
@@ -12,13 +12,41 @@ export const runtime = 'nodejs';
 const HISTORY_LIMIT = 20;
 
 /**
- * GET /api/searchhistory
- * 返回 string[]
+ * @swagger
+ * /api/searchhistory:
+ *   get:
+ *     summary: 获取搜索历史
+ *     description: 获取用户的搜索历史记录
+ *     tags:
+ *       - 搜索
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 返回搜索历史列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: string
+ *       401:
+ *         description: 未授权或用户不存在/被封禁
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 export async function GET(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
-    const authInfo = await getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -49,13 +77,59 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/searchhistory
- * body: { keyword: string }
+ * @swagger
+ * /api/searchhistory:
+ *   post:
+ *     summary: 添加搜索历史
+ *     description: 添加搜索关键词到历史记录
+ *     tags:
+ *       - 搜索
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - keyword
+ *             properties:
+ *               keyword:
+ *                 type: string
+ *                 description: 搜索关键词
+ *     responses:
+ *       200:
+ *         description: 添加成功，返回更新后的搜索历史列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: string
+ *       400:
+ *         description: 关键词不能为空
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未授权或用户不存在/被封禁
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 export async function POST(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
-    const authInfo = await getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -99,15 +173,45 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE /api/searchhistory?keyword=<kw>
- *
- * 1. 不带 keyword -> 清空全部搜索历史
- * 2. 带 keyword=<kw> -> 删除单条关键字
+ * @swagger
+ * /api/searchhistory:
+ *   delete:
+ *     summary: 删除搜索历史
+ *     description: 删除搜索历史，支持删除单条或清空全部
+ *     tags:
+ *       - 搜索
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: keyword
+ *         schema:
+ *           type: string
+ *         description: 要删除的关键词（删除单条时使用，不提供则清空全部）
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       401:
+ *         description: 未授权或用户不存在/被封禁
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 export async function DELETE(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
-    const authInfo = await getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

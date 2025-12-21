@@ -2,7 +2,51 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// OrionTV 兼容接口
+/**
+ * @swagger
+ * /api/image-proxy:
+ *   get:
+ *     summary: 图片代理
+ *     description: 代理获取图片，用于解决跨域问题（OrionTV 兼容接口）
+ *     tags:
+ *       - 代理
+ *     parameters:
+ *       - in: query
+ *         name: url
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 图片URL
+ *     responses:
+ *       200:
+ *         description: 返回图片数据流
+ *         headers:
+ *           Content-Type:
+ *             description: 图片MIME类型
+ *             schema:
+ *               type: string
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           image/*:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: 缺少图片URL
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 获取图片失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const imageUrl = searchParams.get('url');

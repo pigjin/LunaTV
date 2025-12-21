@@ -28,6 +28,26 @@ export async function signJWT(
 }
 
 /**
+ * 生成 Access Token (短期有效，默认1小时)
+ */
+export async function signAccessToken(
+  payload: JWTPayload,
+  expirationTime = '1h'
+): Promise<string> {
+  return signJWT(payload, expirationTime);
+}
+
+/**
+ * 生成 Refresh Token (长期有效，默认30天)
+ */
+export async function signRefreshToken(
+  payload: JWTPayload,
+  expirationTime = '30d'
+): Promise<string> {
+  return signJWT(payload, expirationTime);
+}
+
+/**
  * 验证 JWT (服务端使用)
  * @param token JWT 字符串
  */

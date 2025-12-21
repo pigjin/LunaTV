@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuth } from '@/lib/auth';
 import { verifyJWT } from '@/lib/jwt';
 
 export async function proxy(request: NextRequest) {
@@ -20,11 +20,13 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname.startsWith('/api/proxy/')) {
-    const authInfo = await getAuthInfoFromCookie(request);
+    // 优先使用 Header Bearer Token
+    const authInfo = await verifyAuth(request);
     if (authInfo) {
       return NextResponse.next();
     }
 
+    // 向后兼容：支持 URL 参数中的 token（用于某些特殊场景）
     const token = request.nextUrl.searchParams.get('token');
     if (token) {
       const payload = await verifyJWT(token);
@@ -33,19 +35,18 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    return new NextResponse('Unauthorized', { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // 1. 对于 API 路由：强制要求 Header JWT 鉴权
+  // 对于 API 路由：强制要求 Header Bearer Token 鉴权 (OAuth 2.0)
   if (pathname.startsWith('/api')) {
-    const authInfo = await getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
   }
 
-  // 2. 对于页面路由：完全跳过服务端鉴权，交给客户端 (Client-Side Auth) 处理
-  // 这样做是为了满足"不基于Cookie验证"的需求
+  // 对于页面路由：完全跳过服务端鉴权，交给客户端 (Client-Side Auth) 处理
   return NextResponse.next();
 }
 
@@ -69,7 +70,8 @@ function shouldSkipAuth(pathname: string): boolean {
     '/icons/',
     '/logo.png',
     '/screenshot.png',
-    '/api/image-proxy'
+    '/api/image-proxy',
+    '/api/docs' // API 文档接口不需要认证
   ];
 
   return skipPaths.some((path) => pathname.startsWith(path));
@@ -78,6 +80,6 @@ function shouldSkipAuth(pathname: string): boolean {
 // 配置middleware匹配规则
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|login|warning|api/login|api/register|api/logout|api/cron|api/server-config).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|warning|api/login|api/register|api/logout|api/cron|api/server-config|api/docs).*)',
   ],
 };

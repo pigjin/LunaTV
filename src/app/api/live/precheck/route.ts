@@ -6,6 +6,76 @@ import { getConfig } from '@/lib/config';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/live/precheck:
+ *   get:
+ *     summary: 预检查直播流
+ *     description: 检查直播流URL是否可访问，并返回流类型
+ *     tags:
+ *       - 直播
+ *     parameters:
+ *       - in: query
+ *         name: url
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 直播流URL
+ *       - in: query
+ *         name: moontv-source
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 直播源标识
+ *     responses:
+ *       200:
+ *         description: 检查成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 type:
+ *                   type: string
+ *                   enum: [mp4, flv, m3u8]
+ *                   description: 流类型
+ *       400:
+ *         description: 缺少URL或URL格式无效
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 直播源未找到
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 检查失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ *       504:
+ *         description: 请求超时
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');

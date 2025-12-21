@@ -22,6 +22,99 @@ interface DoubanCategoryApiResponse {
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/douban/categories:
+ *   get:
+ *     summary: 获取豆瓣分类数据
+ *     description: 根据类型、分类和类型参数获取豆瓣电影或电视剧列表
+ *     tags:
+ *       - 豆瓣
+ *     parameters:
+ *       - in: query
+ *         name: kind
+ *         schema:
+ *           type: string
+ *           enum: [tv, movie]
+ *           default: movie
+ *         description: 内容类型
+ *       - in: query
+ *         name: category
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 分类
+ *       - in: query
+ *         name: type
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 类型
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: 每页数量
+ *       - in: query
+ *         name: start
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: 起始位置
+ *     responses:
+ *       200:
+ *         description: 返回电影/电视剧列表
+ *         headers:
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 list:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       title:
+ *                         type: string
+ *                       poster:
+ *                         type: string
+ *                       rate:
+ *                         type: string
+ *                       year:
+ *                         type: string
+ *       400:
+ *         description: 参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 获取数据失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
