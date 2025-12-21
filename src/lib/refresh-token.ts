@@ -30,7 +30,7 @@ function startCleanupTask() {
   // 每小时清理一次过期token
   cleanupInterval = setInterval(() => {
     const now = Date.now();
-    for (const [token, record] of tokenStore.entries()) {
+    for (const [token, record] of Array.from(tokenStore.entries())) {
       if (record.expiresAt < now) {
         tokenStore.delete(token);
       }
@@ -99,14 +99,14 @@ export function revokeRefreshToken(refreshToken: string): void {
 export function revokeUserRefreshTokens(username?: string): void {
   if (!username) {
     // 如果没有用户名，删除所有 local 类型的 token
-    for (const [token, record] of tokenStore.entries()) {
+    for (const [token, record] of Array.from(tokenStore.entries())) {
       if (record.type === 'local') {
         tokenStore.delete(token);
       }
     }
   } else {
     // 删除指定用户的所有 token
-    for (const [token, record] of tokenStore.entries()) {
+    for (const [token, record] of Array.from(tokenStore.entries())) {
       if (record.username === username) {
         tokenStore.delete(token);
       }
