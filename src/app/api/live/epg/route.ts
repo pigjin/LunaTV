@@ -47,7 +47,7 @@ export const runtime = 'nodejs';
  *                     programs:
  *                       type: array
  *                       items:
- *                         type: object
+ *                         $ref: '#/components/schemas/EPGProgram'
  *       400:
  *         description: 缺少必要参数
  *         content:

@@ -1,11 +1,17 @@
 /* eslint-disable no-console */
 import { NextRequest, NextResponse } from 'next/server';
 
+import {
+  ACCESS_TOKEN_EXPIRES_IN,
+  ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+  REFRESH_TOKEN_EXPIRES_IN,
+  REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+} from '@/lib/auth-constants';
 import { signAccessToken, signRefreshToken, verifyJWT } from '@/lib/jwt';
 import {
-  verifyRefreshToken,
   revokeRefreshToken,
   storeRefreshToken,
+  verifyRefreshToken,
 } from '@/lib/refresh-token';
 
 export const runtime = 'nodejs';
@@ -91,8 +97,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 验证 refresh token（从存储中验证）
-    const tokenRecord = verifyRefreshToken(refreshToken);
+    const tokenRecord = await verifyRefreshToken(refreshToken);
     if (!tokenRecord) {
+      console.log('[API/refresh] Refresh Token verify failed: not found in storage or expired');
       return NextResponse.json(
         { ok: false, error: 'Refresh Token无效或已过期' },
         { status: 401 }
@@ -102,8 +109,9 @@ export async function POST(req: NextRequest) {
     // 可选：验证 refresh token 的签名（双重验证）
     const verifiedPayload = await verifyJWT(refreshToken);
     if (!verifiedPayload) {
+      console.log('[API/refresh] Refresh Token verify failed: invalid signature');
       // 如果签名验证失败，删除存储中的记录
-      revokeRefreshToken(refreshToken);
+      await revokeRefreshToken(refreshToken);
       return NextResponse.json(
         { ok: false, error: 'Refresh Token签名验证失败' },
         { status: 401 }
@@ -117,11 +125,11 @@ export async function POST(req: NextRequest) {
         role: tokenRecord.role,
         type: tokenRecord.type,
       },
-      '1h'
+      ACCESS_TOKEN_EXPIRES_IN
     );
 
     // 计算 access token 过期时间戳（1小时后）
-    const expiresIn = Math.floor(Date.now() / 1000) + 60 * 60; // 当前时间戳 + 1小时（秒）
+    const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;
 
     // 检查 refresh token 是否即将过期（剩余时间少于7天），如果是则生成新的 refresh token
     const now = Date.now();
@@ -137,21 +145,21 @@ export async function POST(req: NextRequest) {
           role: tokenRecord.role,
           type: tokenRecord.type,
         },
-        '30d'
+        REFRESH_TOKEN_EXPIRES_IN
       );
 
       // 撤销旧的 refresh token
-      revokeRefreshToken(refreshToken);
+      await revokeRefreshToken(refreshToken);
 
       // 存储新的 refresh token
-      storeRefreshToken(
+      await storeRefreshToken(
         newRefreshToken,
         {
           username: tokenRecord.username,
           role: tokenRecord.role,
           type: tokenRecord.type,
         },
-        30 * 24 * 60 * 60 // 30天
+        REFRESH_TOKEN_EXPIRES_IN_SECONDS
       );
     }
 
@@ -172,4 +180,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
 

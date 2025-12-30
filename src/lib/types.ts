@@ -81,6 +81,21 @@ export interface IStorage {
   deleteSkipConfig(userName: string, source: string, id: string): Promise<void>;
   getAllSkipConfigs(userName: string): Promise<{ [key: string]: SkipConfig }>;
 
+  // Refresh Token 相关
+  storeRefreshToken(
+    refreshToken: string,
+    payload: {
+      username?: string;
+      role: 'owner' | 'admin' | 'user';
+      type: 'local' | 'db';
+    },
+    expiresIn: number
+  ): Promise<void>;
+  getRefreshToken(refreshToken: string): Promise<RefreshTokenRecord | null>;
+  revokeRefreshToken(refreshToken: string): Promise<void>;
+  revokeUserRefreshTokens(username?: string): Promise<void>;
+  cleanupExpiredRefreshTokens(): Promise<void>;
+
   // 数据清理相关
   clearAllData(): Promise<void>;
 }
@@ -121,4 +136,14 @@ export interface SkipConfig {
   enable: boolean; // 是否启用跳过片头片尾
   intro_time: number; // 片头时间（秒）
   outro_time: number; // 片尾时间（秒）
+}
+
+// Refresh Token 存储记录
+export interface RefreshTokenRecord {
+  refreshToken: string;
+  username?: string;
+  role: 'owner' | 'admin' | 'user';
+  type: 'local' | 'db';
+  createdAt: number;
+  expiresAt: number;
 }

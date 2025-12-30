@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // 尝试从请求体获取 refresh token
     const body = await req.json().catch(() => ({}));
     if (body.refreshToken && typeof body.refreshToken === 'string') {
-      revokeRefreshToken(body.refreshToken);
+      await revokeRefreshToken(body.refreshToken);
     }
   } catch {
     // 忽略错误，即使没有提供 refresh token 也允许登出

@@ -46,7 +46,7 @@ export const runtime = 'nodejs';
  *                 results:
  *                   type: array
  *                   items:
- *                     type: object
+ *                     $ref: '#/components/schemas/SearchResult'
  *       400:
  *         description: 缺少必要参数
  *         content:

@@ -98,27 +98,7 @@ export const runtime = 'nodejs';
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 code:
- *                   type: integer
- *                 message:
- *                   type: string
- *                 list:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       title:
- *                         type: string
- *                       poster:
- *                         type: string
- *                       rate:
- *                         type: string
- *                       year:
- *                         type: string
+ *               $ref: '#/components/schemas/MovieResult'
  *       400:
  *         description: 缺少必要参数
  *         content:

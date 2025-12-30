@@ -43,15 +43,7 @@ export const runtime = 'nodejs';
  *                 suggestions:
  *                   type: array
  *                   items:
- *                     type: object
- *                     properties:
- *                       text:
- *                         type: string
- *                       type:
- *                         type: string
- *                         enum: [exact, related, suggestion]
- *                       score:
- *                         type: number
+ *                     $ref: '#/components/schemas/SearchSuggestion'
  *       401:
  *         description: 未授权
  *         content:

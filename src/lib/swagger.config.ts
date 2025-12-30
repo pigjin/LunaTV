@@ -45,23 +45,6 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
-        Favorite: {
-          type: 'object',
-          properties: {
-            title: {
-              type: 'string',
-              description: '标题',
-            },
-            source_name: {
-              type: 'string',
-              description: '来源名称',
-            },
-            save_time: {
-              type: 'number',
-              description: '保存时间戳',
-            },
-          },
-        },
         PlayRecord: {
           type: 'object',
           properties: {
@@ -73,14 +56,303 @@ const options: swaggerJsdoc.Options = {
               type: 'string',
               description: '来源名称',
             },
+            cover: {
+              type: 'string',
+              description: '封面图片URL',
+            },
+            year: {
+              type: 'string',
+              description: '年份',
+            },
             index: {
               type: 'integer',
               description: '播放集数',
               minimum: 1,
             },
+            total_episodes: {
+              type: 'integer',
+              description: '总集数',
+            },
+            play_time: {
+              type: 'number',
+              description: '播放进度（秒）',
+            },
+            total_time: {
+              type: 'number',
+              description: '总时长（秒）',
+            },
             save_time: {
               type: 'number',
               description: '保存时间戳',
+            },
+            search_title: {
+              type: 'string',
+              description: '搜索时使用的标题',
+            },
+          },
+        },
+        Favorite: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              description: '标题',
+            },
+            source_name: {
+              type: 'string',
+              description: '来源名称',
+            },
+            cover: {
+              type: 'string',
+              description: '封面图片URL',
+            },
+            year: {
+              type: 'string',
+              description: '年份',
+            },
+            total_episodes: {
+              type: 'integer',
+              description: '总集数',
+            },
+            save_time: {
+              type: 'number',
+              description: '保存时间戳',
+            },
+            search_title: {
+              type: 'string',
+              description: '搜索时使用的标题',
+            },
+            origin: {
+              type: 'string',
+              enum: ['vod', 'live'],
+              description: '来源类型',
+            },
+          },
+        },
+        SearchResult: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: '视频ID',
+            },
+            title: {
+              type: 'string',
+              description: '标题',
+            },
+            poster: {
+              type: 'string',
+              description: '海报图片URL',
+            },
+            episodes: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              description: '剧集列表（播放地址）',
+            },
+            episodes_titles: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              description: '剧集标题列表',
+            },
+            source: {
+              type: 'string',
+              description: '来源代码',
+            },
+            source_name: {
+              type: 'string',
+              description: '来源名称',
+            },
+            class: {
+              type: 'string',
+              description: '分类',
+            },
+            year: {
+              type: 'string',
+              description: '年份',
+            },
+            desc: {
+              type: 'string',
+              description: '描述',
+            },
+            type_name: {
+              type: 'string',
+              description: '类型名称',
+            },
+            douban_id: {
+              type: 'integer',
+              description: '豆瓣ID',
+            },
+          },
+        },
+        LiveChannel: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: '频道ID',
+            },
+            tvgId: {
+              type: 'string',
+              description: 'TVG ID',
+            },
+            name: {
+              type: 'string',
+              description: '频道名称',
+            },
+            logo: {
+              type: 'string',
+              description: '频道Logo URL',
+            },
+            group: {
+              type: 'string',
+              description: '频道分组',
+            },
+            url: {
+              type: 'string',
+              description: '播放地址',
+            },
+          },
+        },
+        EPGProgram: {
+          type: 'object',
+          properties: {
+            start: {
+              type: 'string',
+              description: '开始时间',
+            },
+            end: {
+              type: 'string',
+              description: '结束时间',
+            },
+            title: {
+              type: 'string',
+              description: '节目名称',
+            },
+          },
+        },
+        MovieItem: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'ID',
+            },
+            title: {
+              type: 'string',
+              description: '标题',
+            },
+            poster: {
+              type: 'string',
+              description: '海报URL',
+            },
+            rate: {
+              type: 'string',
+              description: '评分',
+            },
+            year: {
+              type: 'string',
+              description: '年份',
+            },
+          },
+        },
+        MovieResult: {
+          type: 'object',
+          properties: {
+            code: {
+              type: 'integer',
+              description: '状态码',
+            },
+            message: {
+              type: 'string',
+              description: '消息',
+            },
+            list: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/MovieItem',
+              },
+              description: '电影/电视剧列表',
+            },
+          },
+        },
+        SearchSuggestion: {
+          type: 'object',
+          properties: {
+            text: {
+              type: 'string',
+              description: '建议文本',
+            },
+            type: {
+              type: 'string',
+              enum: ['exact', 'related', 'suggestion'],
+              description: '建议类型',
+            },
+            score: {
+              type: 'number',
+              description: '匹配分数',
+            },
+          },
+        },
+        ApiSite: {
+          type: 'object',
+          properties: {
+            key: {
+              type: 'string',
+              description: 'API源标识',
+            },
+            name: {
+              type: 'string',
+              description: 'API源名称',
+            },
+            api: {
+              type: 'string',
+              description: 'API基础URL',
+            },
+            detail: {
+              type: 'string',
+              description: '详情页URL（可选）',
+            },
+          },
+        },
+        LiveSource: {
+          type: 'object',
+          properties: {
+            key: {
+              type: 'string',
+              description: '直播源标识',
+            },
+            name: {
+              type: 'string',
+              description: '直播源名称',
+            },
+            url: {
+              type: 'string',
+              description: 'M3U播放列表URL',
+            },
+            ua: {
+              type: 'string',
+              description: 'User-Agent（可选）',
+            },
+            epg: {
+              type: 'string',
+              description: 'EPG节目单URL（可选）',
+            },
+            from: {
+              type: 'string',
+              enum: ['config', 'custom'],
+              description: '来源类型',
+            },
+            channelNumber: {
+              type: 'integer',
+              description: '频道数量',
+            },
+            disabled: {
+              type: 'boolean',
+              description: '是否禁用',
             },
           },
         },

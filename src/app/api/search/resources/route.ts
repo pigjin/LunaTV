@@ -25,7 +25,7 @@ export const runtime = 'nodejs';
  *             schema:
  *               type: array
  *               items:
- *                 type: object
+ *                 $ref: '#/components/schemas/ApiSite'
  *       401:
  *         description: 未授权
  *         content:

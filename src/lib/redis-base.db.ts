@@ -1,9 +1,9 @@
-/* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
+/* eslint-disable no-console, @typescript-eslint/no-explicit-any */
 
 import { createClient, RedisClientType } from 'redis';
 
 import { AdminConfig } from './admin.types';
-import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
+import { Favorite, IStorage, PlayRecord, RefreshTokenRecord, SkipConfig } from './types';
 
 // 搜索历史最大条数
 const SEARCH_HISTORY_LIMIT = 20;
@@ -470,6 +470,164 @@ export abstract class BaseRedisStorage implements IStorage {
     return configs;
   }
 
+  // ---------- Refresh Token 存储 ----------
+  private refreshTokenKey(token: string) {
+    return `rt:${token}`; // rt:refreshToken
+  }
+
+  private refreshTokenUserKey(username: string) {
+    return `rtu:${username}`; // rtu:username - 存储用户的所有 refresh token
+  }
+
+  async storeRefreshToken(
+    refreshToken: string,
+    payload: {
+      username?: string;
+      role: 'owner' | 'admin' | 'user';
+      type: 'local' | 'db';
+    },
+    expiresIn: number // 秒数
+  ): Promise<void> {
+    const now = Date.now();
+    const expiresAt = now + expiresIn * 1000;
+
+    const record: RefreshTokenRecord = {
+      refreshToken,
+      username: payload.username,
+      role: payload.role,
+      type: payload.type,
+      createdAt: now,
+      expiresAt,
+    };
+
+    // 存储 refresh token 记录，并设置过期时间
+    await this.withRetry(() =>
+      this.client.set(
+        this.refreshTokenKey(refreshToken),
+        JSON.stringify(record),
+        { EX: expiresIn } // Redis TTL，自动过期
+      )
+    );
+
+    // 如果有用户名，将 token 添加到用户的 token 集合中
+    if (payload.username) {
+      await this.withRetry(() =>
+        this.client.sAdd(
+          this.refreshTokenUserKey(payload.username!),
+          refreshToken
+        )
+      );
+    }
+  }
+
+  async getRefreshToken(
+    refreshToken: string
+  ): Promise<RefreshTokenRecord | null> {
+    const val = await this.withRetry(() =>
+      this.client.get(this.refreshTokenKey(refreshToken))
+    );
+
+    if (!val) {
+      return null;
+    }
+
+    const record = JSON.parse(val) as RefreshTokenRecord;
+
+    // 双重检查过期时间（虽然 Redis 有 TTL，但以防万一）
+    if (record.expiresAt < Date.now()) {
+      await this.revokeRefreshToken(refreshToken);
+      return null;
+    }
+
+    return record;
+  }
+
+  async revokeRefreshToken(refreshToken: string): Promise<void> {
+    // 先获取记录，以便从用户集合中移除
+    const val = await this.withRetry(() =>
+      this.client.get(this.refreshTokenKey(refreshToken))
+    );
+
+    if (val) {
+      const record = JSON.parse(val) as RefreshTokenRecord;
+      // 从用户的 token 集合中移除
+      if (record.username) {
+        await this.withRetry(() =>
+          this.client.sRem(
+            this.refreshTokenUserKey(record.username!),
+            refreshToken
+          )
+        );
+      }
+    }
+
+    // 删除 token 记录
+    await this.withRetry(() =>
+      this.client.del(this.refreshTokenKey(refreshToken))
+    );
+  }
+
+  async revokeUserRefreshTokens(username?: string): Promise<void> {
+    if (!username) {
+      // 如果没有用户名，删除所有 local 类型的 token
+      // 需要扫描所有 rt:* 的 key
+      const pattern = 'rt:*';
+      const keys = await this.withRetry(() => this.client.keys(pattern));
+
+      for (const key of keys) {
+        const val = await this.withRetry(() => this.client.get(key));
+        if (val) {
+          const record = JSON.parse(val) as RefreshTokenRecord;
+          if (record.type === 'local') {
+            await this.withRetry(() => this.client.del(key));
+          }
+        }
+      }
+    } else {
+      // 获取用户的所有 token
+      const tokens = await this.withRetry(() =>
+        this.client.sMembers(this.refreshTokenUserKey(username))
+      );
+
+      // 删除所有 token 记录
+      for (const token of tokens) {
+        await this.withRetry(() =>
+          this.client.del(this.refreshTokenKey(token))
+        );
+      }
+
+      // 删除用户的 token 集合
+      await this.withRetry(() =>
+        this.client.del(this.refreshTokenUserKey(username))
+      );
+    }
+  }
+
+  async cleanupExpiredRefreshTokens(): Promise<void> {
+    // Redis 有 TTL 自动清理，这里只是额外的清理逻辑
+    // 清理用户集合中已失效的 token 引用
+    const userKeyPattern = 'rtu:*';
+    const userKeys = await this.withRetry(() =>
+      this.client.keys(userKeyPattern)
+    );
+
+    for (const userKey of userKeys) {
+      const tokens = await this.withRetry(() => this.client.sMembers(userKey));
+
+      for (const token of tokens) {
+        // 检查 token 是否还存在
+        const exists = await this.withRetry(() =>
+          this.client.exists(this.refreshTokenKey(token))
+        );
+
+        if (exists === 0) {
+          // token 已过期或被删除，从集合中移除引用
+          await this.withRetry(() => this.client.sRem(userKey, token));
+        }
+      }
+    }
+  }
+
   // 清空所有数据
   async clearAllData(): Promise<void> {
     try {
@@ -483,6 +641,17 @@ export abstract class BaseRedisStorage implements IStorage {
 
       // 删除管理员配置
       await this.withRetry(() => this.client.del(this.adminConfigKey()));
+
+      // 删除所有 refresh token
+      const rtKeys = await this.withRetry(() => this.client.keys('rt:*'));
+      if (rtKeys.length > 0) {
+        await this.withRetry(() => this.client.del(rtKeys));
+      }
+
+      const rtuKeys = await this.withRetry(() => this.client.keys('rtu:*'));
+      if (rtuKeys.length > 0) {
+        await this.withRetry(() => this.client.del(rtuKeys));
+      }
 
       console.log('所有数据已清空');
     } catch (error) {

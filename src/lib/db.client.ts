@@ -457,16 +457,24 @@ import { authFetch } from './auth-client';
 // ---- 工具函数 ----
 /**
  * 通用的 fetch 函数，处理 401 状态码自动跳转登录
+ * authFetch 已经处理了 token 刷新逻辑，如果刷新成功会重试请求
+ * 只有刷新失败或重试后仍然 401 时才会跳转登录页
  */
 async function fetchWithAuth(
   url: string,
   options?: RequestInit
 ): Promise<Response> {
+  // authFetch 会自动处理 token 刷新：
+  // 1. 如果收到 401，会先尝试刷新 token
+  // 2. 如果刷新成功，会用新 token 重试请求
+  // 3. 如果刷新失败或重试后仍然 401，才返回 401
   const res = await authFetch(url, options);
+  
   if (!res.ok) {
-    // 如果是 401 未授权，跳转到登录页面
+    // 如果是 401 未授权，说明 token 刷新失败或重试后仍然失败
+    // 此时才跳转到登录页面
     if (res.status === 401) {
-      // 调用 logout 接口
+      // 调用 logout 接口清理服务端状态
       try {
         await authFetch('/api/logout', {
           method: 'POST',

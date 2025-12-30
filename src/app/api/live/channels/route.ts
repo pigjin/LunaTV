@@ -32,7 +32,7 @@ export const runtime = 'nodejs';
  *                 data:
  *                   type: array
  *                   items:
- *                     type: object
+ *                     $ref: '#/components/schemas/LiveChannel'
  *       400:
  *         description: 缺少直播源参数
  *         content:

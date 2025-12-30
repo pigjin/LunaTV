@@ -1,5 +1,7 @@
 import { decodeJwt, jwtVerify, SignJWT } from 'jose';
 
+import { ACCESS_TOKEN_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_IN } from './auth-constants';
+
 // 密钥，使用环境变量 PASSWORD
 // 注意：必须确保服务端有 PASSWORD 环境变量
 const SECRET_KEY = process.env.PASSWORD || 'default_secret_key_change_me';
@@ -32,7 +34,7 @@ export async function signJWT(
  */
 export async function signAccessToken(
   payload: JWTPayload,
-  expirationTime = '1h'
+  expirationTime = ACCESS_TOKEN_EXPIRES_IN
 ): Promise<string> {
   return signJWT(payload, expirationTime);
 }
@@ -42,7 +44,7 @@ export async function signAccessToken(
  */
 export async function signRefreshToken(
   payload: JWTPayload,
-  expirationTime = '30d'
+  expirationTime = REFRESH_TOKEN_EXPIRES_IN
 ): Promise<string> {
   return signJWT(payload, expirationTime);
 }
@@ -57,7 +59,7 @@ export async function verifyJWT(token: string): Promise<JWTPayload | null> {
       algorithms: ['HS256'],
     });
     return payload as JWTPayload;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -69,7 +71,7 @@ export async function verifyJWT(token: string): Promise<JWTPayload | null> {
 export function decodeJWT(token: string): JWTPayload | null {
   try {
     return decodeJwt(token) as JWTPayload;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

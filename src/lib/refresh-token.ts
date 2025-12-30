@@ -1,22 +1,17 @@
 /* eslint-disable no-console */
 /**
  * Refresh Token 存储管理器
- * 使用内存存储，服务重启后会丢失（可后续改为数据库存储）
+ * 使用数据库持久化存储（Redis/Upstash/Kvrocks）
+ * 同时保留内存缓存以提高性能
  */
 
-interface RefreshTokenRecord {
-  refreshToken: string;
-  username?: string;
-  role: 'owner' | 'admin' | 'user';
-  type: 'local' | 'db';
-  createdAt: number;
-  expiresAt: number;
-}
+import { db } from './db';
+import { RefreshTokenRecord } from './types';
 
-// 内存存储
-const tokenStore = new Map<string, RefreshTokenRecord>();
+// 内存缓存（用于提高读取性能）
+const tokenCache = new Map<string, RefreshTokenRecord>();
 
-// 清理过期token的定时器
+// 缓存过期检查间隔
 let cleanupInterval: NodeJS.Timeout | null = null;
 
 /**
@@ -27,21 +22,25 @@ function startCleanupTask() {
     return;
   }
 
-  // 每小时清理一次过期token
+  // 每小时清理一次过期token缓存
   cleanupInterval = setInterval(() => {
     const now = Date.now();
-    for (const [token, record] of Array.from(tokenStore.entries())) {
+    for (const [token, record] of Array.from(tokenCache.entries())) {
       if (record.expiresAt < now) {
-        tokenStore.delete(token);
+        tokenCache.delete(token);
       }
     }
+    // 同时清理数据库中的过期引用
+    db.cleanupExpiredRefreshTokens().catch((err) => {
+      console.error('清理过期 refresh token 失败:', err);
+    });
   }, 60 * 60 * 1000);
 }
 
 /**
  * 存储 refresh token
  */
-export function storeRefreshToken(
+export async function storeRefreshToken(
   refreshToken: string,
   payload: {
     username?: string;
@@ -49,18 +48,24 @@ export function storeRefreshToken(
     type: 'local' | 'db';
   },
   expiresIn: number // 秒数
-): void {
+): Promise<void> {
   const now = Date.now();
   const expiresAt = now + expiresIn * 1000;
 
-  tokenStore.set(refreshToken, {
+  const record: RefreshTokenRecord = {
     refreshToken,
     username: payload.username,
     role: payload.role,
     type: payload.type,
     createdAt: now,
     expiresAt,
-  });
+  };
+
+  // 存储到数据库
+  await db.storeRefreshToken(refreshToken, payload, expiresIn);
+
+  // 同时存储到内存缓存
+  tokenCache.set(refreshToken, record);
 
   // 启动清理任务
   startCleanupTask();
@@ -68,56 +73,78 @@ export function storeRefreshToken(
 
 /**
  * 验证并获取 refresh token 记录
+ * 先从内存缓存查找，如果没有则从数据库查找
  */
-export function verifyRefreshToken(
+export async function verifyRefreshToken(
   refreshToken: string
-): RefreshTokenRecord | null {
-  const record = tokenStore.get(refreshToken);
-  if (!record) {
-    return null;
+): Promise<RefreshTokenRecord | null> {
+  // 先检查内存缓存
+  const cachedRecord = tokenCache.get(refreshToken);
+  if (cachedRecord) {
+    // 检查是否过期
+    if (cachedRecord.expiresAt < Date.now()) {
+      console.log('[verifyRefreshToken] Memory cache hit but expired');
+      tokenCache.delete(refreshToken);
+      // 从数据库中也删除
+      await db.revokeRefreshToken(refreshToken);
+      return null;
+    }
+    console.log('[verifyRefreshToken] Memory cache hit');
+    return cachedRecord;
   }
 
-  // 检查是否过期
-  if (record.expiresAt < Date.now()) {
-    tokenStore.delete(refreshToken);
-    return null;
+  // 从数据库查找
+  const dbRecord = await db.getRefreshToken(refreshToken);
+  if (dbRecord) {
+    console.log('[verifyRefreshToken] DB hit');
+    // 添加到内存缓存
+    tokenCache.set(refreshToken, dbRecord);
+  } else {
+    console.log('[verifyRefreshToken] Not found in DB');
   }
 
-  return record;
+  return dbRecord;
 }
 
 /**
  * 删除 refresh token
  */
-export function revokeRefreshToken(refreshToken: string): void {
-  tokenStore.delete(refreshToken);
+export async function revokeRefreshToken(refreshToken: string): Promise<void> {
+  // 从内存缓存删除
+  tokenCache.delete(refreshToken);
+
+  // 从数据库删除
+  await db.revokeRefreshToken(refreshToken);
 }
 
 /**
  * 删除用户的所有 refresh token
  */
-export function revokeUserRefreshTokens(username?: string): void {
+export async function revokeUserRefreshTokens(username?: string): Promise<void> {
+  // 从内存缓存删除
   if (!username) {
     // 如果没有用户名，删除所有 local 类型的 token
-    for (const [token, record] of Array.from(tokenStore.entries())) {
+    for (const [token, record] of Array.from(tokenCache.entries())) {
       if (record.type === 'local') {
-        tokenStore.delete(token);
+        tokenCache.delete(token);
       }
     }
   } else {
     // 删除指定用户的所有 token
-    for (const [token, record] of Array.from(tokenStore.entries())) {
+    for (const [token, record] of Array.from(tokenCache.entries())) {
       if (record.username === username) {
-        tokenStore.delete(token);
+        tokenCache.delete(token);
       }
     }
   }
+
+  // 从数据库删除
+  await db.revokeUserRefreshTokens(username);
 }
 
 /**
  * 获取存储的 token 数量（用于调试）
  */
 export function getTokenCount(): number {
-  return tokenStore.size;
+  return tokenCache.size;
 }
-

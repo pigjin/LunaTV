@@ -1,9 +1,9 @@
-/* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { AdminConfig } from './admin.types';
 import { KvrocksStorage } from './kvrocks.db';
 import { RedisStorage } from './redis.db';
-import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
+import { Favorite, IStorage, PlayRecord, RefreshTokenRecord, SkipConfig } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
 // storage type 常量: 'localstorage' | 'redis' | 'upstash'，默认 'localstorage'
@@ -15,17 +15,21 @@ const STORAGE_TYPE =
     | 'kvrocks'
     | undefined) || 'localstorage';
 
+console.log('[DbManager] Storage Type:', STORAGE_TYPE);
+
 // 创建存储实例
 function createStorage(): IStorage {
+  console.log('[DbManager] Initializing storage for type:', STORAGE_TYPE);
   switch (STORAGE_TYPE) {
     case 'redis':
-      return new RedisStorage();
+      return new RedisStorage(); // 使用默认 redis url
     case 'upstash':
       return new UpstashRedisStorage();
     case 'kvrocks':
       return new KvrocksStorage();
     case 'localstorage':
     default:
+      console.warn('[DbManager] Using localstorage mode - Persistent Refresh Tokens NOT AVAILABLE in backend');
       return null as unknown as IStorage;
   }
 }
@@ -51,6 +55,11 @@ export class DbManager {
 
   constructor() {
     this.storage = getStorage();
+    if (!this.storage) {
+        console.warn('[DbManager] Storage is NULL. DB operations will fail or be no-ops.');
+    } else {
+        console.log('[DbManager] Storage initialized successfully.');
+    }
   }
 
   // 播放记录相关方法
@@ -229,6 +238,48 @@ export class DbManager {
       return (this.storage as any).getAllSkipConfigs(userName);
     }
     return {};
+  }
+
+  // ---------- Refresh Token ----------
+  async storeRefreshToken(
+    refreshToken: string,
+    payload: {
+      username?: string;
+      role: 'owner' | 'admin' | 'user';
+      type: 'local' | 'db';
+    },
+    expiresIn: number
+  ): Promise<void> {
+    if (typeof this.storage?.storeRefreshToken === 'function') {
+      await this.storage.storeRefreshToken(refreshToken, payload, expiresIn);
+    }
+  }
+
+  async getRefreshToken(
+    refreshToken: string
+  ): Promise<RefreshTokenRecord | null> {
+    if (typeof this.storage?.getRefreshToken === 'function') {
+      return this.storage.getRefreshToken(refreshToken);
+    }
+    return null;
+  }
+
+  async revokeRefreshToken(refreshToken: string): Promise<void> {
+    if (typeof this.storage?.revokeRefreshToken === 'function') {
+      await this.storage.revokeRefreshToken(refreshToken);
+    }
+  }
+
+  async revokeUserRefreshTokens(username?: string): Promise<void> {
+    if (typeof this.storage?.revokeUserRefreshTokens === 'function') {
+      await this.storage.revokeUserRefreshTokens(username);
+    }
+  }
+
+  async cleanupExpiredRefreshTokens(): Promise<void> {
+    if (typeof this.storage?.cleanupExpiredRefreshTokens === 'function') {
+      await this.storage.cleanupExpiredRefreshTokens();
+    }
   }
 
   // ---------- 数据清理 ----------

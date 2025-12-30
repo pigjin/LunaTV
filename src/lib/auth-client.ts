@@ -171,18 +171,30 @@ export async function authFetch(
 
   // 如果返回401，说明 token 过期，需要刷新
   if (response.status === 401) {
+    console.log('[authFetch] 收到 401 响应，尝试刷新 token...');
+    
     // 触发 token 刷新（多个并发请求会共享同一个刷新操作）
     const newToken = await refreshAccessToken();
 
     if (newToken) {
+      console.log('[authFetch] Token 刷新成功，使用新 token 重试请求');
       // 使用新 token 重试原始请求
       headers.set('Authorization', `Bearer ${newToken}`);
       response = await fetch(url, {
         ...options,
         headers,
       });
+      
+      // 如果重试后仍然返回 401，说明可能是其他问题（如权限不足）
+      if (response.status === 401) {
+        console.warn('[authFetch] 使用新 token 重试后仍然返回 401，可能是权限问题');
+      } else {
+        console.log('[authFetch] 使用新 token 重试请求成功');
+      }
+    } else {
+      console.warn('[authFetch] Token 刷新失败，返回 401 响应');
     }
-    // 如果刷新失败，返回原始 401 响应
+    // 如果刷新失败，返回原始 401 响应或重试后的响应
     // 调用方可以根据需要处理（如跳转登录页）
   }
 

@@ -40,7 +40,7 @@ export const runtime = 'nodejs';
  *         content:
  *           application/json:
  *             schema:
- *               type: object
+ *               $ref: '#/components/schemas/SearchResult'
  *       400:
  *         description: 参数错误或无效的API来源
  *         content:

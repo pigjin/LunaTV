@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+ 
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -71,7 +71,8 @@ function shouldSkipAuth(pathname: string): boolean {
     '/logo.png',
     '/screenshot.png',
     '/api/image-proxy',
-    '/api/docs' // API 文档接口不需要认证
+    '/api/docs',
+    '/api/refresh'
   ];
 
   return skipPaths.some((path) => pathname.startsWith(path));
@@ -80,6 +81,6 @@ function shouldSkipAuth(pathname: string): boolean {
 // 配置middleware匹配规则
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|login|warning|api/login|api/register|api/logout|api/cron|api/server-config|api/docs).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|warning|api/login|api/register|api/logout|api/cron|api/server-config|api/docs|api/refresh).*)',
   ],
 };

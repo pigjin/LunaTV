@@ -25,26 +25,6 @@ export async function verifyAuth(
 }
 
 /**
- * 验证并获取认证信息 (向后兼容的别名)
- * @deprecated 使用 verifyAuth 代替
- */
-export async function verifyAuthToken(
-  request: NextRequest
-): Promise<JWTPayload | null> {
-  return verifyAuth(request);
-}
-
-/**
- * 验证并获取认证信息 (向后兼容的别名)
- * @deprecated 使用 verifyAuth 代替
- */
-export async function getAuthInfoFromCookie(
-  request: NextRequest
-): Promise<JWTPayload | null> {
-  return verifyAuth(request);
-}
-
-/**
  * 从 localStorage 获取认证信息 (客户端使用，不验证签名)
  * 支持新的 accessToken 和旧的 token key
  */
@@ -55,24 +35,13 @@ export function getAuthInfoFromStorage(): JWTPayload | null {
 
   try {
     // 优先使用新的 accessToken key
-    let token =
-      localStorage.getItem('accessToken') ||
-      localStorage.getItem('token'); // 向后兼容
-
+    const token = localStorage.getItem('accessToken')
     if (!token) {
       return null;
     }
 
     return decodeJWT(token);
-  } catch (error) {
+  } catch {
     return null;
   }
-}
-
-/**
- * 从 localStorage 获取认证信息 (向后兼容的别名)
- * @deprecated 使用 getAuthInfoFromStorage 代替
- */
-export function getAuthInfoFromBrowserCookie(): JWTPayload | null {
-  return getAuthInfoFromStorage();
 }

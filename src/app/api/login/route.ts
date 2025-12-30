@@ -1,6 +1,12 @@
 /* eslint-disable no-console */
 import { NextRequest, NextResponse } from 'next/server';
 
+import {
+  ACCESS_TOKEN_EXPIRES_IN,
+  ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+  REFRESH_TOKEN_EXPIRES_IN,
+  REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+} from '@/lib/auth-constants';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { signAccessToken, signRefreshToken } from '@/lib/jwt';
@@ -123,16 +129,16 @@ export async function POST(req: NextRequest) {
       };
 
       // 先撤销该用户之前的 refresh token（如果有）
-      revokeUserRefreshTokens();
+      await revokeUserRefreshTokens();
 
-      const accessToken = await signAccessToken(payload, '1h');
-      const refreshToken = await signRefreshToken(payload, '30d');
+      const accessToken = await signAccessToken(payload, ACCESS_TOKEN_EXPIRES_IN);
+      const refreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
 
       // 存储 refresh token
-      storeRefreshToken(refreshToken, payload, 30 * 24 * 60 * 60); // 30天
+      await storeRefreshToken(refreshToken, payload, REFRESH_TOKEN_EXPIRES_IN_SECONDS);
 
       // 计算 access token 过期时间戳（1小时后）
-      const expiresIn = Math.floor(Date.now() / 1000) + 60 * 60; // 当前时间戳 + 1小时（秒）
+      const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;
 
       return NextResponse.json({
         ok: true,
@@ -167,16 +173,16 @@ export async function POST(req: NextRequest) {
       };
 
       // 先撤销该用户之前的 refresh token
-      revokeUserRefreshTokens(username);
+      await revokeUserRefreshTokens(username);
 
-      const accessToken = await signAccessToken(payload, '1h');
-      const refreshToken = await signRefreshToken(payload, '30d');
+      const accessToken = await signAccessToken(payload, ACCESS_TOKEN_EXPIRES_IN);
+      const refreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
 
       // 存储 refresh token
-      storeRefreshToken(refreshToken, payload, 30 * 24 * 60 * 60); // 30天
+      await storeRefreshToken(refreshToken, payload, REFRESH_TOKEN_EXPIRES_IN_SECONDS);
 
       // 计算 access token 过期时间戳（1小时后）
-      const expiresIn = Math.floor(Date.now() / 1000) + 60 * 60; // 当前时间戳 + 1小时（秒）
+      const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;
 
       return NextResponse.json({
         ok: true,
@@ -214,16 +220,16 @@ export async function POST(req: NextRequest) {
       };
 
       // 先撤销该用户之前的 refresh token
-      revokeUserRefreshTokens(username);
+      await revokeUserRefreshTokens(username);
 
-      const accessToken = await signAccessToken(payload, '1h');
-      const refreshToken = await signRefreshToken(payload, '30d');
+      const accessToken = await signAccessToken(payload, ACCESS_TOKEN_EXPIRES_IN);
+      const refreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
 
       // 存储 refresh token
-      storeRefreshToken(refreshToken, payload, 30 * 24 * 60 * 60); // 30天
+      await storeRefreshToken(refreshToken, payload, REFRESH_TOKEN_EXPIRES_IN_SECONDS);
 
       // 计算 access token 过期时间戳（1小时后）
-      const expiresIn = Math.floor(Date.now() / 1000) + 60 * 60; // 当前时间戳 + 1小时（秒）
+      const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;
 
       return NextResponse.json({
         ok: true,

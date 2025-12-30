@@ -27,7 +27,7 @@ export const runtime = 'nodejs';
  *                 data:
  *                   type: array
  *                   items:
- *                     type: object
+ *                     $ref: '#/components/schemas/LiveSource'
  *       404:
  *         description: 配置未找到
  *         content:
