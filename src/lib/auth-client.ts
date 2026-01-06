@@ -114,6 +114,7 @@ async function refreshAccessToken(): Promise<string | null> {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Client-Platform': 'web'
         },
         body: JSON.stringify({ refreshToken }),
       });
@@ -156,8 +157,9 @@ export async function authFetch(
   }
 
   // 获取当前 token
-  let token = getAccessToken();
+  const token = getAccessToken();
   const headers = new Headers(options.headers);
+  headers.set('X-Client-Platform', 'web');
 
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
