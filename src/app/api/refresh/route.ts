@@ -52,7 +52,7 @@ export const runtime = 'nodejs';
  *                 refreshToken:
  *                   type: string
  *                   description: 新的Refresh Token（可选，如果原token仍有效则返回原token）
- *                 expires_in:
+ *                 expiresIn:
  *                   type: integer
  *                   description: Access Token 过期时间戳（Unix 时间戳，单位：秒）
  *                 role:
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     if (!refreshToken || typeof refreshToken !== 'string') {
       return NextResponse.json(
         { ok: false, error: '未提供refreshToken' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       console.log('[API/refresh] Refresh Token verify failed: not found in storage or expired');
       return NextResponse.json(
         { ok: false, error: 'Refresh Token无效或已过期' },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -114,61 +114,36 @@ export async function POST(req: NextRequest) {
       await revokeRefreshToken(refreshToken);
       return NextResponse.json(
         { ok: false, error: 'Refresh Token签名验证失败' },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
+    const payload = {
+      username: tokenRecord.username,
+      role: tokenRecord.role,
+      type: tokenRecord.type,
+    };
+
     // 生成新的 access token
-    const newAccessToken = await signAccessToken(
-      {
-        username: tokenRecord.username,
-        role: tokenRecord.role,
-        type: tokenRecord.type,
-      },
-      ACCESS_TOKEN_EXPIRES_IN
-    );
+    const newAccessToken = await signAccessToken(payload, ACCESS_TOKEN_EXPIRES_IN);
 
     // 计算 access token 过期时间戳（1小时后）
     const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;
 
-    // 检查 refresh token 是否即将过期（剩余时间少于7天），如果是则生成新的 refresh token
-    const now = Date.now();
-    const timeUntilExpiry = tokenRecord.expiresAt - now;
-    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+    // 生成新的 refresh token
+    const newRefreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
 
-    let newRefreshToken: string | undefined;
-    if (timeUntilExpiry < sevenDaysInMs) {
-      // 生成新的 refresh token
-      newRefreshToken = await signRefreshToken(
-        {
-          username: tokenRecord.username,
-          role: tokenRecord.role,
-          type: tokenRecord.type,
-        },
-        REFRESH_TOKEN_EXPIRES_IN
-      );
+    // 撤销旧的 refresh token
+    await revokeRefreshToken(refreshToken);
 
-      // 撤销旧的 refresh token
-      await revokeRefreshToken(refreshToken);
-
-      // 存储新的 refresh token
-      await storeRefreshToken(
-        newRefreshToken,
-        {
-          username: tokenRecord.username,
-          role: tokenRecord.role,
-          type: tokenRecord.type,
-        },
-        REFRESH_TOKEN_EXPIRES_IN_SECONDS
-      );
-    }
+    // 存储新的 refresh token
+    await storeRefreshToken(newRefreshToken, payload, REFRESH_TOKEN_EXPIRES_IN_SECONDS);
 
     return NextResponse.json({
       ok: true,
       accessToken: newAccessToken,
-      ...(newRefreshToken && { refreshToken: newRefreshToken }),
-      expires_in: expiresIn,
-      token: newAccessToken, // 保持向后兼容
+      refreshToken: newRefreshToken,
+      expiresIn: expiresIn,
       role: tokenRecord.role,
       username: tokenRecord.username,
     });
@@ -176,9 +151,7 @@ export async function POST(req: NextRequest) {
     console.error('刷新token接口异常', error);
     return NextResponse.json(
       { ok: false, error: '服务器错误' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-
-

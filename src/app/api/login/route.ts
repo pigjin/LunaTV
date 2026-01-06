@@ -66,7 +66,7 @@ const STORAGE_TYPE =
  *                 refreshToken:
  *                   type: string
  *                   description: Refresh Token (长期有效，30天)
- *                 expires_in:
+ *                 expiresIn:
  *                   type: integer
  *                   description: Access Token 过期时间戳（Unix 时间戳，单位：秒）
  *                 role:
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
         ok: true,
         accessToken,
         refreshToken,
-        expires_in: expiresIn,
+        expiresIn,
         role: 'user',
         username: undefined,
       });
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
         ok: true,
         accessToken,
         refreshToken,
-        expires_in: expiresIn,
+        expiresIn,
         role: 'owner',
         username,
       });
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
         ok: true,
         accessToken,
         refreshToken,
-        expires_in: expiresIn,
+        expiresIn,
         role: user?.role || 'user',
         username,
       });
