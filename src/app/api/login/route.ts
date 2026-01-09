@@ -101,6 +101,7 @@ const STORAGE_TYPE =
  */
 export async function POST(req: NextRequest) {
   try {
+    const clientPlatform = req.headers.get('X-Client-Platform') || 'web';
     // 本地 / localStorage 模式——仅校验固定密码
     if (STORAGE_TYPE === 'localstorage') {
       const envPassword = process.env.PASSWORD;
@@ -129,13 +130,18 @@ export async function POST(req: NextRequest) {
       };
 
       // 先撤销该用户之前的 refresh token（如果有）
-      await revokeUserRefreshTokens();
+      await revokeUserRefreshTokens(clientPlatform);
 
       const accessToken = await signAccessToken(payload, ACCESS_TOKEN_EXPIRES_IN);
       const refreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
 
       // 存储 refresh token
-      await storeRefreshToken(refreshToken, payload, REFRESH_TOKEN_EXPIRES_IN_SECONDS);
+      await storeRefreshToken(
+        clientPlatform,
+        refreshToken,
+        payload,
+        REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+      );
 
       // 计算 access token 过期时间戳（1小时后）
       const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;
@@ -173,13 +179,18 @@ export async function POST(req: NextRequest) {
       };
 
       // 先撤销该用户之前的 refresh token
-      await revokeUserRefreshTokens(username);
+      await revokeUserRefreshTokens(clientPlatform, username);
 
       const accessToken = await signAccessToken(payload, ACCESS_TOKEN_EXPIRES_IN);
       const refreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
 
       // 存储 refresh token
-      await storeRefreshToken(refreshToken, payload, REFRESH_TOKEN_EXPIRES_IN_SECONDS);
+      await storeRefreshToken(
+        clientPlatform,
+        refreshToken,
+        payload,
+        REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+      );
 
       // 计算 access token 过期时间戳（1小时后）
       const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;
@@ -220,13 +231,18 @@ export async function POST(req: NextRequest) {
       };
 
       // 先撤销该用户之前的 refresh token
-      await revokeUserRefreshTokens(username);
+      await revokeUserRefreshTokens(clientPlatform, username);
 
       const accessToken = await signAccessToken(payload, ACCESS_TOKEN_EXPIRES_IN);
       const refreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
 
       // 存储 refresh token
-      await storeRefreshToken(refreshToken, payload, REFRESH_TOKEN_EXPIRES_IN_SECONDS);
+      await storeRefreshToken(
+        clientPlatform,
+        refreshToken,
+        payload,
+        REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+      );
 
       // 计算 access token 过期时间戳（1小时后）
       const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;

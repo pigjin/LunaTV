@@ -33,7 +33,7 @@ export interface IStorage {
   setPlayRecord(
     userName: string,
     key: string,
-    record: PlayRecord
+    record: PlayRecord,
   ): Promise<void>;
   getAllPlayRecords(userName: string): Promise<{ [key: string]: PlayRecord }>;
   deletePlayRecord(userName: string, key: string): Promise<void>;
@@ -70,30 +70,40 @@ export interface IStorage {
   getSkipConfig(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<SkipConfig | null>;
   setSkipConfig(
     userName: string,
     source: string,
     id: string,
-    config: SkipConfig
+    config: SkipConfig,
   ): Promise<void>;
   deleteSkipConfig(userName: string, source: string, id: string): Promise<void>;
   getAllSkipConfigs(userName: string): Promise<{ [key: string]: SkipConfig }>;
 
   // Refresh Token 相关
   storeRefreshToken(
+    clientPlatform: string,
     refreshToken: string,
     payload: {
       username?: string;
       role: 'owner' | 'admin' | 'user';
       type: 'local' | 'db';
     },
-    expiresIn: number
+    expiresIn: number,
   ): Promise<void>;
-  getRefreshToken(refreshToken: string): Promise<RefreshTokenRecord | null>;
-  revokeRefreshToken(refreshToken: string): Promise<void>;
-  revokeUserRefreshTokens(username?: string): Promise<void>;
+  getRefreshToken(
+    clientPlatform: string,
+    refreshToken: string,
+  ): Promise<RefreshTokenRecord | null>;
+  revokeRefreshToken(
+    clientPlatform: string,
+    refreshToken: string,
+  ): Promise<void>;
+  revokeUserRefreshTokens(
+    clientPlatform: string,
+    username?: string,
+  ): Promise<void>;
   cleanupExpiredRefreshTokens(): Promise<void>;
 
   // 数据清理相关
@@ -140,6 +150,7 @@ export interface SkipConfig {
 
 // Refresh Token 存储记录
 export interface RefreshTokenRecord {
+  clientPlatform: string;
   refreshToken: string;
   username?: string;
   role: 'owner' | 'admin' | 'user';

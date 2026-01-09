@@ -56,9 +56,11 @@ export class DbManager {
   constructor() {
     this.storage = getStorage();
     if (!this.storage) {
-        console.warn('[DbManager] Storage is NULL. DB operations will fail or be no-ops.');
+      console.warn(
+        '[DbManager] Storage is NULL. DB operations will fail or be no-ops.',
+      );
     } else {
-        console.log('[DbManager] Storage initialized successfully.');
+      console.log('[DbManager] Storage initialized successfully.');
     }
   }
 
@@ -66,7 +68,7 @@ export class DbManager {
   async getPlayRecord(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<PlayRecord | null> {
     const key = generateStorageKey(source, id);
     return this.storage.getPlayRecord(userName, key);
@@ -76,7 +78,7 @@ export class DbManager {
     userName: string,
     source: string,
     id: string,
-    record: PlayRecord
+    record: PlayRecord,
   ): Promise<void> {
     const key = generateStorageKey(source, id);
     await this.storage.setPlayRecord(userName, key, record);
@@ -91,7 +93,7 @@ export class DbManager {
   async deletePlayRecord(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<void> {
     const key = generateStorageKey(source, id);
     await this.storage.deletePlayRecord(userName, key);
@@ -101,7 +103,7 @@ export class DbManager {
   async getFavorite(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<Favorite | null> {
     const key = generateStorageKey(source, id);
     return this.storage.getFavorite(userName, key);
@@ -111,14 +113,14 @@ export class DbManager {
     userName: string,
     source: string,
     id: string,
-    favorite: Favorite
+    favorite: Favorite,
   ): Promise<void> {
     const key = generateStorageKey(source, id);
     await this.storage.setFavorite(userName, key, favorite);
   }
 
   async getAllFavorites(
-    userName: string
+    userName: string,
   ): Promise<{ [key: string]: Favorite }> {
     return this.storage.getAllFavorites(userName);
   }
@@ -126,7 +128,7 @@ export class DbManager {
   async deleteFavorite(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<void> {
     const key = generateStorageKey(source, id);
     await this.storage.deleteFavorite(userName, key);
@@ -135,7 +137,7 @@ export class DbManager {
   async isFavorited(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<boolean> {
     const favorite = await this.getFavorite(userName, source, id);
     return favorite !== null;
@@ -202,7 +204,7 @@ export class DbManager {
   async getSkipConfig(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<SkipConfig | null> {
     if (typeof (this.storage as any).getSkipConfig === 'function') {
       return (this.storage as any).getSkipConfig(userName, source, id);
@@ -214,7 +216,7 @@ export class DbManager {
     userName: string,
     source: string,
     id: string,
-    config: SkipConfig
+    config: SkipConfig,
   ): Promise<void> {
     if (typeof (this.storage as any).setSkipConfig === 'function') {
       await (this.storage as any).setSkipConfig(userName, source, id, config);
@@ -224,7 +226,7 @@ export class DbManager {
   async deleteSkipConfig(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<void> {
     if (typeof (this.storage as any).deleteSkipConfig === 'function') {
       await (this.storage as any).deleteSkipConfig(userName, source, id);
@@ -232,7 +234,7 @@ export class DbManager {
   }
 
   async getAllSkipConfigs(
-    userName: string
+    userName: string,
   ): Promise<{ [key: string]: SkipConfig }> {
     if (typeof (this.storage as any).getAllSkipConfigs === 'function') {
       return (this.storage as any).getAllSkipConfigs(userName);
@@ -242,37 +244,50 @@ export class DbManager {
 
   // ---------- Refresh Token ----------
   async storeRefreshToken(
+    clientPlatform: string,
     refreshToken: string,
     payload: {
       username?: string;
       role: 'owner' | 'admin' | 'user';
       type: 'local' | 'db';
     },
-    expiresIn: number
+    expiresIn: number,
   ): Promise<void> {
     if (typeof this.storage?.storeRefreshToken === 'function') {
-      await this.storage.storeRefreshToken(refreshToken, payload, expiresIn);
+      await this.storage.storeRefreshToken(
+        clientPlatform,
+        refreshToken,
+        payload,
+        expiresIn,
+      );
     }
   }
 
   async getRefreshToken(
-    refreshToken: string
+    clientPlatform: string,
+    refreshToken: string,
   ): Promise<RefreshTokenRecord | null> {
     if (typeof this.storage?.getRefreshToken === 'function') {
-      return this.storage.getRefreshToken(refreshToken);
+      return this.storage.getRefreshToken(clientPlatform, refreshToken);
     }
     return null;
   }
 
-  async revokeRefreshToken(refreshToken: string): Promise<void> {
+  async revokeRefreshToken(
+    clientPlatform: string,
+    refreshToken: string,
+  ): Promise<void> {
     if (typeof this.storage?.revokeRefreshToken === 'function') {
-      await this.storage.revokeRefreshToken(refreshToken);
+      await this.storage.revokeRefreshToken(clientPlatform, refreshToken);
     }
   }
 
-  async revokeUserRefreshTokens(username?: string): Promise<void> {
+  async revokeUserRefreshTokens(
+    clientPlatform: string,
+    username?: string,
+  ): Promise<void> {
     if (typeof this.storage?.revokeUserRefreshTokens === 'function') {
-      await this.storage.revokeUserRefreshTokens(username);
+      await this.storage.revokeUserRefreshTokens(clientPlatform, username);
     }
   }
 

@@ -35,16 +35,16 @@ export const runtime = 'nodejs';
  */
 export async function POST(req: NextRequest) {
   try {
+    const clientPlatform = req.headers.get('X-Client-Platform') || 'web';
     // 尝试从请求体获取 refresh token
     const body = await req.json().catch(() => ({}));
     if (body.refreshToken && typeof body.refreshToken === 'string') {
-      await revokeRefreshToken(body.refreshToken);
+      await revokeRefreshToken(clientPlatform, body.refreshToken);
     }
   } catch {
     // 忽略错误，即使没有提供 refresh token 也允许登出
   }
 
-  const response = NextResponse.json({ ok: true });
   // Cookie 鉴权已移除，不再需要删除 cookie
-  return response;
+  return NextResponse.json({ ok: true });
 }

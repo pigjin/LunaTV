@@ -41,18 +41,20 @@ function startCleanupTask() {
  * 存储 refresh token
  */
 export async function storeRefreshToken(
+  clientPlatform: string,
   refreshToken: string,
   payload: {
     username?: string;
     role: 'owner' | 'admin' | 'user';
     type: 'local' | 'db';
   },
-  expiresIn: number // 秒数
+  expiresIn: number, // 秒数
 ): Promise<void> {
   const now = Date.now();
   const expiresAt = now + expiresIn * 1000;
 
   const record: RefreshTokenRecord = {
+    clientPlatform,
     refreshToken,
     username: payload.username,
     role: payload.role,
@@ -62,7 +64,7 @@ export async function storeRefreshToken(
   };
 
   // 存储到数据库
-  await db.storeRefreshToken(refreshToken, payload, expiresIn);
+  await db.storeRefreshToken(clientPlatform, refreshToken, payload, expiresIn);
 
   // 同时存储到内存缓存
   tokenCache.set(refreshToken, record);
@@ -76,6 +78,7 @@ export async function storeRefreshToken(
  * 先从内存缓存查找，如果没有则从数据库查找
  */
 export async function verifyRefreshToken(
+  clientPlatform: string,
   refreshToken: string
 ): Promise<RefreshTokenRecord | null> {
   // 先检查内存缓存
@@ -86,7 +89,7 @@ export async function verifyRefreshToken(
       console.log('[verifyRefreshToken] Memory cache hit but expired');
       tokenCache.delete(refreshToken);
       // 从数据库中也删除
-      await db.revokeRefreshToken(refreshToken);
+      await db.revokeRefreshToken(clientPlatform, refreshToken);
       return null;
     }
     console.log('[verifyRefreshToken] Memory cache hit');
@@ -94,7 +97,7 @@ export async function verifyRefreshToken(
   }
 
   // 从数据库查找
-  const dbRecord = await db.getRefreshToken(refreshToken);
+  const dbRecord = await db.getRefreshToken(clientPlatform, refreshToken);
   if (dbRecord) {
     console.log('[verifyRefreshToken] DB hit');
     // 添加到内存缓存
@@ -109,18 +112,24 @@ export async function verifyRefreshToken(
 /**
  * 删除 refresh token
  */
-export async function revokeRefreshToken(refreshToken: string): Promise<void> {
+export async function revokeRefreshToken(
+  clientPlatform: string,
+  refreshToken: string,
+): Promise<void> {
   // 从内存缓存删除
   tokenCache.delete(refreshToken);
 
   // 从数据库删除
-  await db.revokeRefreshToken(refreshToken);
+  await db.revokeRefreshToken(clientPlatform, refreshToken);
 }
 
 /**
  * 删除用户的所有 refresh token
  */
-export async function revokeUserRefreshTokens(username?: string): Promise<void> {
+export async function revokeUserRefreshTokens(
+  clientPlatform: string,
+  username?: string,
+): Promise<void> {
   // 从内存缓存删除
   if (!username) {
     // 如果没有用户名，删除所有 local 类型的 token
@@ -132,14 +141,17 @@ export async function revokeUserRefreshTokens(username?: string): Promise<void> 
   } else {
     // 删除指定用户的所有 token
     for (const [token, record] of Array.from(tokenCache.entries())) {
-      if (record.username === username) {
+      if (
+        record.username === username &&
+        record.clientPlatform === clientPlatform
+      ) {
         tokenCache.delete(token);
       }
     }
   }
 
   // 从数据库删除
-  await db.revokeUserRefreshTokens(username);
+  await db.revokeUserRefreshTokens(clientPlatform, username);
 }
 
 /**

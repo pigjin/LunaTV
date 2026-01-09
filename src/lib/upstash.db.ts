@@ -67,10 +67,10 @@ export class UpstashRedisStorage implements IStorage {
 
   async getPlayRecord(
     userName: string,
-    key: string
+    key: string,
   ): Promise<PlayRecord | null> {
     const val = await withRetry(() =>
-      this.client.get(this.prKey(userName, key))
+      this.client.get(this.prKey(userName, key)),
     );
     return val ? (val as PlayRecord) : null;
   }
@@ -78,13 +78,13 @@ export class UpstashRedisStorage implements IStorage {
   async setPlayRecord(
     userName: string,
     key: string,
-    record: PlayRecord
+    record: PlayRecord,
   ): Promise<void> {
     await withRetry(() => this.client.set(this.prKey(userName, key), record));
   }
 
   async getAllPlayRecords(
-    userName: string
+    userName: string,
   ): Promise<Record<string, PlayRecord>> {
     const pattern = `u:${userName}:pr:*`;
     const keys: string[] = await withRetry(() => this.client.keys(pattern));
@@ -113,7 +113,7 @@ export class UpstashRedisStorage implements IStorage {
 
   async getFavorite(userName: string, key: string): Promise<Favorite | null> {
     const val = await withRetry(() =>
-      this.client.get(this.favKey(userName, key))
+      this.client.get(this.favKey(userName, key)),
     );
     return val ? (val as Favorite) : null;
   }
@@ -121,10 +121,10 @@ export class UpstashRedisStorage implements IStorage {
   async setFavorite(
     userName: string,
     key: string,
-    favorite: Favorite
+    favorite: Favorite,
   ): Promise<void> {
     await withRetry(() =>
-      this.client.set(this.favKey(userName, key), favorite)
+      this.client.set(this.favKey(userName, key), favorite),
     );
   }
 
@@ -160,7 +160,7 @@ export class UpstashRedisStorage implements IStorage {
 
   async verifyUser(userName: string, password: string): Promise<boolean> {
     const stored = await withRetry(() =>
-      this.client.get(this.userPwdKey(userName))
+      this.client.get(this.userPwdKey(userName)),
     );
     if (stored === null) return false;
     // 确保比较时都是字符串类型
@@ -171,7 +171,7 @@ export class UpstashRedisStorage implements IStorage {
   async checkUserExist(userName: string): Promise<boolean> {
     // 使用 EXISTS 判断 key 是否存在
     const exists = await withRetry(() =>
-      this.client.exists(this.userPwdKey(userName))
+      this.client.exists(this.userPwdKey(userName)),
     );
     return exists === 1;
   }
@@ -180,7 +180,7 @@ export class UpstashRedisStorage implements IStorage {
   async changePassword(userName: string, newPassword: string): Promise<void> {
     // 简单存储明文密码，生产环境应加密
     await withRetry(() =>
-      this.client.set(this.userPwdKey(userName), newPassword)
+      this.client.set(this.userPwdKey(userName), newPassword),
     );
   }
 
@@ -195,7 +195,7 @@ export class UpstashRedisStorage implements IStorage {
     // 删除播放记录
     const playRecordPattern = `u:${userName}:pr:*`;
     const playRecordKeys = await withRetry(() =>
-      this.client.keys(playRecordPattern)
+      this.client.keys(playRecordPattern),
     );
     if (playRecordKeys.length > 0) {
       await withRetry(() => this.client.del(...playRecordKeys));
@@ -204,7 +204,7 @@ export class UpstashRedisStorage implements IStorage {
     // 删除收藏夹
     const favoritePattern = `u:${userName}:fav:*`;
     const favoriteKeys = await withRetry(() =>
-      this.client.keys(favoritePattern)
+      this.client.keys(favoritePattern),
     );
     if (favoriteKeys.length > 0) {
       await withRetry(() => this.client.del(...favoriteKeys));
@@ -213,7 +213,7 @@ export class UpstashRedisStorage implements IStorage {
     // 删除跳过片头片尾配置
     const skipConfigPattern = `u:${userName}:skip:*`;
     const skipConfigKeys = await withRetry(() =>
-      this.client.keys(skipConfigPattern)
+      this.client.keys(skipConfigPattern),
     );
     if (skipConfigKeys.length > 0) {
       await withRetry(() => this.client.del(...skipConfigKeys));
@@ -227,7 +227,7 @@ export class UpstashRedisStorage implements IStorage {
 
   async getSearchHistory(userName: string): Promise<string[]> {
     const result = await withRetry(() =>
-      this.client.lrange(this.shKey(userName), 0, -1)
+      this.client.lrange(this.shKey(userName), 0, -1),
     );
     // 确保返回的都是字符串类型
     return ensureStringArray(result as any[]);
@@ -285,10 +285,10 @@ export class UpstashRedisStorage implements IStorage {
   async getSkipConfig(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<SkipConfig | null> {
     const val = await withRetry(() =>
-      this.client.get(this.skipConfigKey(userName, source, id))
+      this.client.get(this.skipConfigKey(userName, source, id)),
     );
     return val ? (val as SkipConfig) : null;
   }
@@ -297,25 +297,25 @@ export class UpstashRedisStorage implements IStorage {
     userName: string,
     source: string,
     id: string,
-    config: SkipConfig
+    config: SkipConfig,
   ): Promise<void> {
     await withRetry(() =>
-      this.client.set(this.skipConfigKey(userName, source, id), config)
+      this.client.set(this.skipConfigKey(userName, source, id), config),
     );
   }
 
   async deleteSkipConfig(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<void> {
     await withRetry(() =>
-      this.client.del(this.skipConfigKey(userName, source, id))
+      this.client.del(this.skipConfigKey(userName, source, id)),
     );
   }
 
   async getAllSkipConfigs(
-    userName: string
+    userName: string,
   ): Promise<{ [key: string]: SkipConfig }> {
     const pattern = `u:${userName}:skip:*`;
     const keys = await withRetry(() => this.client.keys(pattern));
@@ -345,8 +345,8 @@ export class UpstashRedisStorage implements IStorage {
   }
 
   // ---------- Refresh Token 存储 ----------
-  private refreshTokenKey(token: string) {
-    return `rt:${token}`; // rt:refreshToken
+  private refreshTokenKey(clientPlatform: string, token: string) {
+    return `rt:${clientPlatform}:${token}`; // rt:refreshToken
   }
 
   private refreshTokenUserKey(username: string) {
@@ -354,18 +354,20 @@ export class UpstashRedisStorage implements IStorage {
   }
 
   async storeRefreshToken(
+    clientPlatform: string,
     refreshToken: string,
     payload: {
       username?: string;
       role: 'owner' | 'admin' | 'user';
       type: 'local' | 'db';
     },
-    expiresIn: number // 秒数
+    expiresIn: number, // 秒数
   ): Promise<void> {
     const now = Date.now();
     const expiresAt = now + expiresIn * 1000;
 
     const record: RefreshTokenRecord = {
+      clientPlatform,
       refreshToken,
       username: payload.username,
       role: payload.role,
@@ -377,25 +379,28 @@ export class UpstashRedisStorage implements IStorage {
     // 存储 refresh token 记录，并设置过期时间
     await withRetry(() =>
       this.client.set(
-        this.refreshTokenKey(refreshToken),
+        this.refreshTokenKey(clientPlatform, refreshToken),
         JSON.stringify(record),
-        { ex: expiresIn } // Upstash Redis TTL，自动过期
-      )
+        { ex: expiresIn }, // Upstash Redis TTL，自动过期
+      ),
     );
 
     // 如果有用户名，将 token 添加到用户的 token 集合中
     if (payload.username) {
       await withRetry(() =>
-        this.client.sadd(this.refreshTokenUserKey(payload.username!), refreshToken)
+        this.client.hset(this.refreshTokenUserKey(payload.username!), {
+          [clientPlatform]: refreshToken,
+        }),
       );
     }
   }
 
   async getRefreshToken(
-    refreshToken: string
+    clientPlatform: string,
+    refreshToken: string,
   ): Promise<RefreshTokenRecord | null> {
     const val = await withRetry(() =>
-      this.client.get(this.refreshTokenKey(refreshToken))
+      this.client.get(this.refreshTokenKey(clientPlatform, refreshToken)),
     );
 
     if (!val) {
@@ -403,72 +408,89 @@ export class UpstashRedisStorage implements IStorage {
     }
 
     // Upstash 返回的可能是已解析的对象或字符串
-    const record = typeof val === 'string' ? JSON.parse(val) : val as RefreshTokenRecord;
+    const record =
+      typeof val === 'string' ? JSON.parse(val) : (val as RefreshTokenRecord);
 
     // 双重检查过期时间（虽然 Redis 有 TTL，但以防万一）
     if (record.expiresAt < Date.now()) {
-      await this.revokeRefreshToken(refreshToken);
+      await this.revokeRefreshToken(clientPlatform, refreshToken);
       return null;
     }
 
     return record;
   }
 
-  async revokeRefreshToken(refreshToken: string): Promise<void> {
+  async revokeRefreshToken(
+    clientPlatform: string,
+    refreshToken: string,
+  ): Promise<void> {
     // 先获取记录，以便从用户集合中移除
     const val = await withRetry(() =>
-      this.client.get(this.refreshTokenKey(refreshToken))
+      this.client.get(this.refreshTokenKey(clientPlatform, refreshToken)),
     );
 
     if (val) {
-      const record = typeof val === 'string' ? JSON.parse(val) : val as RefreshTokenRecord;
+      const record =
+        typeof val === 'string' ? JSON.parse(val) : (val as RefreshTokenRecord);
       // 从用户的 token 集合中移除
       if (record.username) {
         await withRetry(() =>
-          this.client.srem(this.refreshTokenUserKey(record.username!), refreshToken)
+          this.client.srem(
+            this.refreshTokenUserKey(record.username!),
+            refreshToken,
+          ),
         );
       }
     }
 
     // 删除 token 记录
     await withRetry(() =>
-      this.client.del(this.refreshTokenKey(refreshToken))
+      this.client.del(this.refreshTokenKey(clientPlatform, refreshToken)),
     );
   }
 
-  async revokeUserRefreshTokens(username?: string): Promise<void> {
+  async revokeUserRefreshTokens(
+    clientPlatform: string,
+    username?: string,
+  ): Promise<void> {
     if (!username) {
       // 如果没有用户名，删除所有 local 类型的 token
       // 需要扫描所有 rt:* 的 key
-      const pattern = 'rt:*';
+      const pattern = `rt:${clientPlatform}:*`;
       const keys = await withRetry(() => this.client.keys(pattern));
 
       for (const key of keys) {
         const val = await withRetry(() => this.client.get(key));
         if (val) {
-          const record = typeof val === 'string' ? JSON.parse(val) : val as RefreshTokenRecord;
+          const record =
+            typeof val === 'string'
+              ? JSON.parse(val)
+              : (val as RefreshTokenRecord);
           if (record.type === 'local') {
             await withRetry(() => this.client.del(key));
           }
         }
       }
     } else {
-      // 获取用户的所有 token
-      const tokens = await withRetry(() =>
-        this.client.smembers(this.refreshTokenUserKey(username))
+      // 获取用户在该平台下的 token
+      const token = await withRetry(() =>
+        this.client.hget(this.refreshTokenUserKey(username), clientPlatform),
       );
 
-      // 删除所有 token 记录
-      for (const token of tokens) {
+      if (token) {
+        const tokenStr = ensureString(token);
+        // 删除 token 记录
         await withRetry(() =>
-          this.client.del(this.refreshTokenKey(token))
+          this.client.del(
+            this.refreshTokenKey(clientPlatform, tokenStr),
+          ),
+        );
+
+        // 从用户的 token 集合中移除该平台的记录
+        await withRetry(() =>
+          this.client.hdel(this.refreshTokenUserKey(username), clientPlatform),
         );
       }
-
-      // 删除用户的 token 集合
-      await withRetry(() =>
-        this.client.del(this.refreshTokenUserKey(username))
-      );
     }
   }
 
@@ -479,17 +501,19 @@ export class UpstashRedisStorage implements IStorage {
     const userKeys = await withRetry(() => this.client.keys(userKeyPattern));
 
     for (const userKey of userKeys) {
-      const tokens = await withRetry(() => this.client.smembers(userKey));
+      const tokens = await withRetry(() => this.client.hgetall(userKey));
 
-      for (const token of tokens) {
+      for (const tokenKey in tokens) {
         // 检查 token 是否还存在
         const exists = await withRetry(() =>
-          this.client.exists(this.refreshTokenKey(token))
+          this.client.exists(
+            this.refreshTokenKey(tokenKey, ensureString(tokens[tokenKey])),
+          ),
         );
 
         if (exists === 0) {
           // token 已过期或被删除，从集合中移除引用
-          await withRetry(() => this.client.srem(userKey, token));
+          await withRetry(() => this.client.hdel(userKey, tokenKey));
         }
       }
     }

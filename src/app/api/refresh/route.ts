@@ -86,6 +86,7 @@ export const runtime = 'nodejs';
  */
 export async function POST(req: NextRequest) {
   try {
+    const clientPlatform = req.headers.get('X-Client-Platform') || 'web';
     const body = await req.json().catch(() => ({}));
     const { refreshToken } = body;
 
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 验证 refresh token（从存储中验证）
-    const tokenRecord = await verifyRefreshToken(refreshToken);
+    const tokenRecord = await verifyRefreshToken(clientPlatform, refreshToken);
     if (!tokenRecord) {
       console.log('[API/refresh] Refresh Token verify failed: not found in storage or expired');
       return NextResponse.json(
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
     if (!verifiedPayload) {
       console.log('[API/refresh] Refresh Token verify failed: invalid signature');
       // 如果签名验证失败，删除存储中的记录
-      await revokeRefreshToken(refreshToken);
+      await revokeRefreshToken(clientPlatform, refreshToken);
       return NextResponse.json(
         { ok: false, error: 'Refresh Token签名验证失败' },
         { status: 401 },
@@ -134,10 +135,15 @@ export async function POST(req: NextRequest) {
     const newRefreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
 
     // 撤销旧的 refresh token
-    await revokeRefreshToken(refreshToken);
+    await revokeRefreshToken(clientPlatform, refreshToken);
 
     // 存储新的 refresh token
-    await storeRefreshToken(newRefreshToken, payload, REFRESH_TOKEN_EXPIRES_IN_SECONDS);
+    await storeRefreshToken(
+      clientPlatform,
+      newRefreshToken,
+      payload,
+      REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+    );
 
     return NextResponse.json({
       ok: true,
