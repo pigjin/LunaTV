@@ -21,6 +21,35 @@ export const runtime = 'nodejs';
  *               type: object
  */
 export async function GET() {
-  return NextResponse.json(swaggerSpec);
+  const spec = JSON.parse(JSON.stringify(swaggerSpec));
+
+  // 全局注入 X-Client-Platform 请求头参数
+  const clientPlatformParam = {
+    $ref: '#/components/parameters/ClientPlatform',
+  };
+
+  if (spec.paths) {
+    Object.keys(spec.paths).forEach((path) => {
+      const pathItem = spec.paths[path];
+      Object.keys(pathItem).forEach((method) => {
+        if (['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) {
+          const operation = pathItem[method];
+          operation.parameters = operation.parameters || [];
+          
+          // 检查是否已经存在该参数，避免重复添加
+          const exists = operation.parameters.some((p: any) => 
+            (p.name === 'X-Client-Platform') || 
+            (p.$ref && p.$ref.endsWith('ClientPlatform'))
+          );
+
+          if (!exists) {
+            operation.parameters.push(clientPlatformParam);
+          }
+        }
+      });
+    });
+  }
+
+  return NextResponse.json(spec);
 }
 

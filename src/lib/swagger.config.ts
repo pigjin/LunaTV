@@ -26,6 +26,19 @@ const options: swaggerJsdoc.Options = {
           description: '通过 Authorization 请求头传递的 JWT token，格式：Bearer {token}',
         },
       },
+      parameters: {
+        ClientPlatform: {
+          in: 'header',
+          name: 'X-Client-Platform',
+          schema: {
+            type: 'string',
+            default: 'web',
+            example: 'web',
+          },
+          required: false,
+          description: '客户端平台标识 (如: web, ios, android, tv)。默认为 web。用于区分不同设备的多端登录。',
+        },
+      },
       schemas: {
         Error: {
           type: 'object',
