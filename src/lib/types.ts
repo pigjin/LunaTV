@@ -33,18 +33,16 @@ export interface IStorage {
   setPlayRecord(
     userName: string,
     key: string,
-    record: PlayRecord
+    record: PlayRecord,
   ): Promise<void>;
   getAllPlayRecords(userName: string): Promise<{ [key: string]: PlayRecord }>;
   deletePlayRecord(userName: string, key: string): Promise<void>;
-  deleteAllPlayRecords(userName: string): Promise<void>;
 
   // 收藏相关
   getFavorite(userName: string, key: string): Promise<Favorite | null>;
   setFavorite(userName: string, key: string, favorite: Favorite): Promise<void>;
   getAllFavorites(userName: string): Promise<{ [key: string]: Favorite }>;
   deleteFavorite(userName: string, key: string): Promise<void>;
-  deleteAllFavorites(userName: string): Promise<void>;
 
   // 用户相关
   registerUser(userName: string, password: string): Promise<void>;
@@ -72,22 +70,41 @@ export interface IStorage {
   getSkipConfig(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<SkipConfig | null>;
   setSkipConfig(
     userName: string,
     source: string,
     id: string,
-    config: SkipConfig
+    config: SkipConfig,
   ): Promise<void>;
   deleteSkipConfig(userName: string, source: string, id: string): Promise<void>;
   getAllSkipConfigs(userName: string): Promise<{ [key: string]: SkipConfig }>;
 
-  // 数据迁移（旧扁平 key → Hash 结构）
-  migrateData?(): Promise<void>;
-
-  // 密码迁移（明文 → 加盐哈希）
-  migratePasswords?(): Promise<void>;
+  // Refresh Token 相关
+  storeRefreshToken(
+    clientPlatform: string,
+    refreshToken: string,
+    payload: {
+      username?: string;
+      role: 'owner' | 'admin' | 'user';
+      type: 'local' | 'db';
+    },
+    expiresIn: number,
+  ): Promise<void>;
+  getRefreshToken(
+    clientPlatform: string,
+    refreshToken: string,
+  ): Promise<RefreshTokenRecord | null>;
+  revokeRefreshToken(
+    clientPlatform: string,
+    refreshToken: string,
+  ): Promise<void>;
+  revokeUserRefreshTokens(
+    clientPlatform: string,
+    username?: string,
+  ): Promise<void>;
+  cleanupExpiredRefreshTokens(): Promise<void>;
 
   // 数据清理相关
   clearAllData(): Promise<void>;
@@ -110,7 +127,7 @@ export interface SearchResult {
 }
 
 // 豆瓣数据结构
-export interface DoubanItem {
+export interface MovieItem {
   id: string;
   title: string;
   poster: string;
@@ -118,10 +135,10 @@ export interface DoubanItem {
   year: string;
 }
 
-export interface DoubanResult {
+export interface MovieResult {
   code: number;
   message: string;
-  list: DoubanItem[];
+  list: MovieItem[];
 }
 
 // 跳过片头片尾配置数据结构
@@ -129,4 +146,15 @@ export interface SkipConfig {
   enable: boolean; // 是否启用跳过片头片尾
   intro_time: number; // 片头时间（秒）
   outro_time: number; // 片尾时间（秒）
+}
+
+// Refresh Token 存储记录
+export interface RefreshTokenRecord {
+  clientPlatform: string;
+  refreshToken: string;
+  username?: string;
+  role: 'owner' | 'admin' | 'user';
+  type: 'local' | 'db';
+  createdAt: number;
+  expiresAt: number;
 }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getCacheTime } from '@/lib/config';
 import { fetchDoubanData } from '@/lib/douban';
-import { DoubanItem, DoubanResult } from '@/lib/types';
+import { MovieItem, MovieResult } from '@/lib/types';
 
 interface DoubanApiResponse {
   subjects: Array<{
@@ -15,6 +15,73 @@ interface DoubanApiResponse {
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/douban:
+ *   get:
+ *     summary: 获取豆瓣电影/电视剧数据
+ *     description: 根据类型和标签获取豆瓣电影或电视剧列表，支持 Top250
+ *     tags:
+ *       - 豆瓣
+ *     parameters:
+ *       - in: query
+ *         name: type
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [tv, movie]
+ *         description: 内容类型，tv 或 movie
+ *       - in: query
+ *         name: tag
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 标签，如 top250、热门等
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 16
+ *         description: 每页数量
+ *       - in: query
+ *         name: pageStart
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: 起始页码
+ *     responses:
+ *       200:
+ *         description: 返回电影/电视剧列表
+ *         headers:
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MovieResult'
+ *       400:
+ *         description: 参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 获取数据失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
@@ -64,7 +131,7 @@ export async function GET(request: Request) {
     const doubanData = await fetchDoubanData<DoubanApiResponse>(target);
 
     // 转换数据格式
-    const list: DoubanItem[] = doubanData.subjects.map((item) => ({
+    const list: MovieItem[] = doubanData.subjects.map((item) => ({
       id: item.id,
       title: item.title,
       poster: item.cover,
@@ -72,7 +139,7 @@ export async function GET(request: Request) {
       year: '',
     }));
 
-    const response: DoubanResult = {
+    const response: MovieResult = {
       code: 200,
       message: '获取成功',
       list: list,
@@ -127,7 +194,7 @@ function handleTop250(pageStart: number) {
       // 通过正则同时捕获影片 id、标题、封面以及评分
       const moviePattern =
         /<div class="item">[\s\S]*?<a[^>]+href="https?:\/\/movie\.douban\.com\/subject\/(\d+)\/"[\s\S]*?<img[^>]+alt="([^"]+)"[^>]*src="([^"]+)"[\s\S]*?<span class="rating_num"[^>]*>([^<]*)<\/span>[\s\S]*?<\/div>/g;
-      const movies: DoubanItem[] = [];
+      const movies: MovieItem[] = [];
       let match;
 
       while ((match = moviePattern.exec(html)) !== null) {
@@ -148,7 +215,7 @@ function handleTop250(pageStart: number) {
         });
       }
 
-      const apiResponse: DoubanResult = {
+      const apiResponse: MovieResult = {
         code: 200,
         message: '获取成功',
         list: movies,

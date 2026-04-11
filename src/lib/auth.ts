@@ -1,72 +1,47 @@
 import { NextRequest } from 'next/server';
 
-// 从cookie获取认证信息 (服务端使用)
-export function getAuthInfoFromCookie(request: NextRequest): {
-  password?: string;
-  username?: string;
-  signature?: string;
-  timestamp?: number;
-} | null {
-  const authCookie = request.cookies.get('auth');
+import { decodeJWT, JWTPayload, verifyJWT } from '@/lib/jwt';
 
-  if (!authCookie) {
+/**
+ * 验证并获取认证信息 (OAuth 2.0 风格，仅支持 Header Bearer Token)
+ * @param request NextRequest 对象
+ * @returns JWT Payload 或 null
+ */
+export async function verifyAuth(
+  request: NextRequest
+): Promise<JWTPayload | null> {
+  // 从 Authorization Header 获取 Bearer Token
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
   }
 
-  try {
-    const decoded = decodeURIComponent(authCookie.value);
-    const authData = JSON.parse(decoded);
-    return authData;
-  } catch (error) {
+  const token = authHeader.substring(7);
+  if (!token) {
     return null;
   }
+
+  return await verifyJWT(token);
 }
 
-// 从cookie获取认证信息 (客户端使用)
-export function getAuthInfoFromBrowserCookie(): {
-  password?: string;
-  username?: string;
-  signature?: string;
-  timestamp?: number;
-  role?: 'owner' | 'admin' | 'user';
-} | null {
+/**
+ * 从 localStorage 获取认证信息 (客户端使用，不验证签名)
+ * 支持新的 accessToken 和旧的 token key
+ */
+export function getAuthInfoFromStorage(): JWTPayload | null {
   if (typeof window === 'undefined') {
     return null;
   }
 
   try {
-    // 解析 document.cookie
-    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-      const trimmed = cookie.trim();
-      const firstEqualIndex = trimmed.indexOf('=');
-
-      if (firstEqualIndex > 0) {
-        const key = trimmed.substring(0, firstEqualIndex);
-        const value = trimmed.substring(firstEqualIndex + 1);
-        if (key && value) {
-          acc[key] = value;
-        }
-      }
-
-      return acc;
-    }, {} as Record<string, string>);
-
-    const authCookie = cookies['auth'];
-    if (!authCookie) {
+    // 优先使用新的 accessToken key
+    const token = localStorage.getItem('accessToken')
+    if (!token) {
       return null;
     }
 
-    // 处理可能的双重编码
-    let decoded = decodeURIComponent(authCookie);
-
-    // 如果解码后仍然包含 %，说明是双重编码，需要再次解码
-    if (decoded.includes('%')) {
-      decoded = decodeURIComponent(decoded);
-    }
-
-    const authData = JSON.parse(decoded);
-    return authData;
-  } catch (error) {
+    return decodeJWT(token);
+  } catch {
     return null;
   }
 }

@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any,no-console,no-case-declarations */
 
-import { DoubanItem, DoubanResult } from './types';
+import { authFetch } from '@/lib/auth-client';
+
+import { MovieItem, MovieResult } from './types';
 
 interface DoubanCategoriesParams {
   kind: 'tv' | 'movie';
@@ -69,8 +71,8 @@ async function fetchWithTimeout(
     proxyUrl === 'https://cors-anywhere.com/'
       ? `${proxyUrl}${url}`
       : proxyUrl
-        ? `${proxyUrl}${encodeURIComponent(url)}`
-        : url;
+      ? `${proxyUrl}${encodeURIComponent(url)}`
+      : url;
 
   const fetchOptions: RequestInit = {
     signal: controller.signal,
@@ -94,12 +96,12 @@ async function fetchWithTimeout(
 
 function getDoubanProxyConfig(): {
   proxyType:
-  | 'direct'
-  | 'cors-proxy-zwei'
-  | 'cmliussss-cdn-tencent'
-  | 'cmliussss-cdn-ali'
-  | 'cors-anywhere'
-  | 'custom';
+    | 'direct'
+    | 'cors-proxy-zwei'
+    | 'cmliussss-cdn-tencent'
+    | 'cmliussss-cdn-ali'
+    | 'cors-anywhere'
+    | 'custom';
   proxyUrl: string;
 } {
   const doubanProxyType =
@@ -124,7 +126,7 @@ export async function fetchDoubanCategories(
   proxyUrl: string,
   useTencentCDN = false,
   useAliCDN = false
-): Promise<DoubanResult> {
+): Promise<MovieResult> {
   const { kind, category, type, pageLimit = 20, pageStart = 0 } = params;
 
   // 验证参数
@@ -147,8 +149,8 @@ export async function fetchDoubanCategories(
   const target = useTencentCDN
     ? `https://m.douban.cmliussss.net/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`
     : useAliCDN
-      ? `https://m.douban.cmliussss.com/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`
-      : `https://m.douban.com/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`;
+    ? `https://m.douban.cmliussss.com/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`
+    : `https://m.douban.com/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`;
 
   try {
     const response = await fetchWithTimeout(
@@ -163,7 +165,7 @@ export async function fetchDoubanCategories(
     const doubanData: DoubanCategoryApiResponse = await response.json();
 
     // 转换数据格式
-    const list: DoubanItem[] = doubanData.items.map((item) => ({
+    const list: MovieItem[] = doubanData.items.map((item) => ({
       id: item.id,
       title: item.title,
       poster: item.pic?.normal || item.pic?.large || '',
@@ -194,7 +196,7 @@ export async function fetchDoubanCategories(
  */
 export async function getDoubanCategories(
   params: DoubanCategoriesParams
-): Promise<DoubanResult> {
+): Promise<MovieResult> {
   const { kind, category, type, pageLimit = 20, pageStart = 0 } = params;
   const { proxyType, proxyUrl } = getDoubanProxyConfig();
   switch (proxyType) {
@@ -210,7 +212,7 @@ export async function getDoubanCategories(
       return fetchDoubanCategories(params, proxyUrl);
     case 'direct':
     default:
-      const response = await fetch(
+      const response = await authFetch(
         `/api/douban/categories?kind=${kind}&category=${category}&type=${type}&limit=${pageLimit}&start=${pageStart}`
       );
 
@@ -227,7 +229,7 @@ interface DoubanListParams {
 
 export async function getDoubanList(
   params: DoubanListParams
-): Promise<DoubanResult> {
+): Promise<MovieResult> {
   const { tag, type, pageLimit = 20, pageStart = 0 } = params;
   const { proxyType, proxyUrl } = getDoubanProxyConfig();
   switch (proxyType) {
@@ -243,7 +245,7 @@ export async function getDoubanList(
       return fetchDoubanList(params, proxyUrl);
     case 'direct':
     default:
-      const response = await fetch(
+      const response = await authFetch(
         `/api/douban?tag=${tag}&type=${type}&pageSize=${pageLimit}&pageStart=${pageStart}`
       );
 
@@ -256,7 +258,7 @@ export async function fetchDoubanList(
   proxyUrl: string,
   useTencentCDN = false,
   useAliCDN = false
-): Promise<DoubanResult> {
+): Promise<MovieResult> {
   const { tag, type, pageLimit = 20, pageStart = 0 } = params;
 
   // 验证参数
@@ -279,8 +281,8 @@ export async function fetchDoubanList(
   const target = useTencentCDN
     ? `https://movie.douban.cmliussss.net/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`
     : useAliCDN
-      ? `https://movie.douban.cmliussss.com/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`
-      : `https://movie.douban.com/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`;
+    ? `https://movie.douban.cmliussss.com/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`
+    : `https://movie.douban.com/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`;
 
   try {
     const response = await fetchWithTimeout(
@@ -295,7 +297,7 @@ export async function fetchDoubanList(
     const doubanData: DoubanListApiResponse = await response.json();
 
     // 转换数据格式
-    const list: DoubanItem[] = doubanData.subjects.map((item) => ({
+    const list: MovieItem[] = doubanData.subjects.map((item) => ({
       id: item.id,
       title: item.title,
       poster: item.cover,
@@ -336,7 +338,7 @@ interface DoubanRecommendsParams {
 
 export async function getDoubanRecommends(
   params: DoubanRecommendsParams
-): Promise<DoubanResult> {
+): Promise<MovieResult> {
   const {
     kind,
     pageLimit = 20,
@@ -363,7 +365,7 @@ export async function getDoubanRecommends(
       return fetchDoubanRecommends(params, proxyUrl);
     case 'direct':
     default:
-      const response = await fetch(
+      const response = await authFetch(
         `/api/douban/recommends?kind=${kind}&limit=${pageLimit}&start=${pageStart}&category=${category}&format=${format}&region=${region}&year=${year}&platform=${platform}&sort=${sort}&label=${label}`
       );
 
@@ -376,7 +378,7 @@ async function fetchDoubanRecommends(
   proxyUrl: string,
   useTencentCDN = false,
   useAliCDN = false
-): Promise<DoubanResult> {
+): Promise<MovieResult> {
   const { kind, pageLimit = 20, pageStart = 0 } = params;
   let { category, format, region, year, platform, sort, label } = params;
   if (category === 'all') {
@@ -432,8 +434,8 @@ async function fetchDoubanRecommends(
   const baseUrl = useTencentCDN
     ? `https://m.douban.cmliussss.net/rexxar/api/v2/${kind}/recommend`
     : useAliCDN
-      ? `https://m.douban.cmliussss.com/rexxar/api/v2/${kind}/recommend`
-      : `https://m.douban.com/rexxar/api/v2/${kind}/recommend`;
+    ? `https://m.douban.cmliussss.com/rexxar/api/v2/${kind}/recommend`
+    : `https://m.douban.com/rexxar/api/v2/${kind}/recommend`;
   const reqParams = new URLSearchParams();
   reqParams.append('refresh', '0');
   reqParams.append('start', pageStart.toString());
@@ -458,7 +460,7 @@ async function fetchDoubanRecommends(
     }
 
     const doubanData: DoubanRecommendApiResponse = await response.json();
-    const list: DoubanItem[] = doubanData.items
+    const list: MovieItem[] = doubanData.items
       .filter((item) => item.type == 'movie' || item.type == 'tv')
       .map((item) => ({
         id: item.id,

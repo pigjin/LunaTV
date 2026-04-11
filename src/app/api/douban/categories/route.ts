@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getCacheTime } from '@/lib/config';
 import { fetchDoubanData } from '@/lib/douban';
-import { DoubanItem, DoubanResult } from '@/lib/types';
+import { MovieResult,MovieItem } from '@/lib/types';
 
 interface DoubanCategoryApiResponse {
   total: number;
@@ -22,6 +22,79 @@ interface DoubanCategoryApiResponse {
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/douban/categories:
+ *   get:
+ *     summary: 获取豆瓣分类数据
+ *     description: 根据类型、分类和类型参数获取豆瓣电影或电视剧列表
+ *     tags:
+ *       - 豆瓣
+ *     parameters:
+ *       - in: query
+ *         name: kind
+ *         schema:
+ *           type: string
+ *           enum: [tv, movie]
+ *           default: movie
+ *         description: 内容类型
+ *       - in: query
+ *         name: category
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 分类
+ *       - in: query
+ *         name: type
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 类型
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: 每页数量
+ *       - in: query
+ *         name: start
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: 起始位置
+ *     responses:
+ *       200:
+ *         description: 返回电影/电视剧列表
+ *         headers:
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/MovieResult'
+ *       400:
+ *         description: 参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 获取数据失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
@@ -68,7 +141,7 @@ export async function GET(request: Request) {
     const doubanData = await fetchDoubanData<DoubanCategoryApiResponse>(target);
 
     // 转换数据格式
-    const list: DoubanItem[] = doubanData.items.map((item) => ({
+    const list: MovieItem[] = doubanData.items.map((item) => ({
       id: item.id,
       title: item.title,
       poster: item.pic?.normal || item.pic?.large || '',
@@ -76,7 +149,7 @@ export async function GET(request: Request) {
       year: item.card_subtitle?.match(/(\d{4})/)?.[1] || '',
     }));
 
-    const response: DoubanResult = {
+    const response: MovieResult = {
       code: 200,
       message: '获取成功',
       list: list,

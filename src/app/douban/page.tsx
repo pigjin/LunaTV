@@ -12,18 +12,17 @@ import {
   getDoubanList,
   getDoubanRecommends,
 } from '@/lib/douban.client';
-import { DoubanItem, DoubanResult } from '@/lib/types';
+import { MovieItem, MovieResult } from '@/lib/types';
 
 import DoubanCardSkeleton from '@/components/DoubanCardSkeleton';
 import DoubanCustomSelector from '@/components/DoubanCustomSelector';
 import DoubanSelector from '@/components/DoubanSelector';
 import PageLayout from '@/components/PageLayout';
 import VideoCard from '@/components/VideoCard';
-import VirtualGrid from '@/components/VirtualGrid';
 
 function DoubanPageClient() {
   const searchParams = useSearchParams();
-  const [doubanData, setDoubanData] = useState<DoubanItem[]>([]);
+  const [doubanData, setDoubanData] = useState<MovieItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -215,7 +214,7 @@ function DoubanPageClient() {
         snapshot1.selectedWeekday === snapshot2.selectedWeekday &&
         snapshot1.currentPage === snapshot2.currentPage &&
         JSON.stringify(snapshot1.multiLevelSelection) ===
-        JSON.stringify(snapshot2.multiLevelSelection)
+          JSON.stringify(snapshot2.multiLevelSelection)
       );
     },
     []
@@ -267,7 +266,7 @@ function DoubanPageClient() {
       setHasMore(true);
       setIsLoadingMore(false);
 
-      let data: DoubanResult;
+      let data: MovieResult;
 
       if (type === 'custom') {
         // 自定义分类模式：根据选中的一级和二级选项获取对应的分类
@@ -435,7 +434,7 @@ function DoubanPageClient() {
         try {
           setIsLoadingMore(true);
 
-          let data: DoubanResult;
+          let data: MovieResult;
           if (type === 'custom') {
             // 自定义分类模式：根据选中的一级和二级选项获取对应的分类
             const selectedCategory = customCategories.find(
@@ -687,12 +686,12 @@ function DoubanPageClient() {
     return type === 'movie'
       ? '电影'
       : type === 'tv'
-        ? '电视剧'
-        : type === 'anime'
-          ? '动漫'
-          : type === 'show'
-            ? '综艺'
-            : '自定义';
+      ? '电视剧'
+      : type === 'anime'
+      ? '动漫'
+      : type === 'show'
+      ? '综艺'
+      : '自定义';
   };
 
   const getPageDescription = () => {
@@ -755,35 +754,28 @@ function DoubanPageClient() {
         {/* 内容展示区域 */}
         <div className='max-w-[95%] mx-auto mt-8 overflow-visible'>
           {/* 内容网格 */}
-          {loading || !selectorsReady
-            ? // 显示骨架屏
-            <div className='justify-start grid grid-cols-3 gap-x-2 gap-y-12 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-20'>
-              {skeletonData.map((index) => <DoubanCardSkeleton key={index} />)}
-            </div>
-            : // 显示实际数据
-            <VirtualGrid
-              items={doubanData}
-              className='grid-cols-3 gap-x-2 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8'
-              rowGapClass='pb-12 sm:pb-20'
-              estimateRowHeight={320}
-              renderItem={(item, index) => (
-                <div key={`${item.title}-${index}`} className='w-full'>
-                  <VideoCard
-                    from='douban'
-                    title={item.title}
-                    poster={item.poster}
-                    douban_id={Number(item.id)}
-                    rate={item.rate}
-                    year={item.year}
-                    type={type === 'movie' ? 'movie' : ''} // 电影类型严格控制，tv 不控
-                    isBangumi={
-                      type === 'anime' && primarySelection === '每日放送'
-                    }
-                  />
-                </div>
-              )}
-            />
-          }
+          <div className='justify-start grid grid-cols-3 gap-x-2 gap-y-12 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-20'>
+            {loading || !selectorsReady
+              ? // 显示骨架屏
+                skeletonData.map((index) => <DoubanCardSkeleton key={index} />)
+              : // 显示实际数据
+                doubanData.map((item, index) => (
+                  <div key={`${item.title}-${index}`} className='w-full'>
+                    <VideoCard
+                      from='douban'
+                      title={item.title}
+                      poster={item.poster}
+                      douban_id={Number(item.id)}
+                      rate={item.rate}
+                      year={item.year}
+                      type={type === 'movie' ? 'movie' : ''} // 电影类型严格控制，tv 不控
+                      isBangumi={
+                        type === 'anime' && primarySelection === '每日放送'
+                      }
+                    />
+                  </div>
+                ))}
+          </div>
 
           {/* 加载更多指示器 */}
           {hasMore && !loading && (

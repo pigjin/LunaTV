@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuth } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { Favorite } from '@/lib/types';
@@ -10,16 +10,66 @@ import { Favorite } from '@/lib/types';
 export const runtime = 'nodejs';
 
 /**
- * GET /api/favorites
- *
- * 支持两种调用方式：
- * 1. 不带 query，返回全部收藏列表（Record<string, Favorite>）。
- * 2. 带 key=source+id，返回单条收藏（Favorite | null）。
+ * @swagger
+ * /api/favorites:
+ *   get:
+ *     summary: 获取收藏列表
+ *     description: 获取用户的收藏列表，支持查询全部或单条收藏
+ *     tags:
+ *       - 收藏
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: key
+ *         schema:
+ *           type: string
+ *         description: 收藏键值，格式为 source+id
+ *       - in: query
+ *         name: id
+ *         schema:
+ *           type: string
+ *         description: 视频ID（需配合source使用）
+ *       - in: query
+ *         name: source
+ *         schema:
+ *           type: string
+ *         description: 视频来源（需配合id使用）
+ *     responses:
+ *       200:
+ *         description: 返回收藏列表或单条收藏
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - type: object
+ *                   additionalProperties:
+ *                     $ref: '#/components/schemas/Favorite'
+ *                 - $ref: '#/components/schemas/Favorite'
+ *                 - type: null
+ *       400:
+ *         description: 参数格式错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未授权或用户不存在/被封禁
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 export async function GET(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
-    const authInfo = getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -40,6 +90,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
+    const id = searchParams.get('id');
+    const source = searchParams.get('source');
 
     // 查询单条收藏
     if (key) {
@@ -50,6 +102,9 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         );
       }
+      const fav = await db.getFavorite(authInfo.username, source, id);
+      return NextResponse.json(fav, { status: 200 });
+    } else if (id && source) {
       const fav = await db.getFavorite(authInfo.username, source, id);
       return NextResponse.json(fav, { status: 200 });
     }
@@ -67,13 +122,60 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/favorites
- * body: { key: string; favorite: Favorite }
+ * @swagger
+ * /api/favorites:
+ *   post:
+ *     summary: 添加收藏
+ *     description: 添加视频到收藏列表
+ *     tags:
+ *       - 收藏
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - key
+ *               - favorite
+ *             properties:
+ *               key:
+ *                 type: string
+ *                 description: 收藏键值，格式为 source+id
+ *               favorite:
+ *                 $ref: '#/components/schemas/Favorite'
+ *     responses:
+ *       200:
+ *         description: 添加成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: 参数错误或数据无效
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未授权或用户不存在/被封禁
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 export async function POST(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
-    const authInfo = getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -136,15 +238,61 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE /api/favorites
- *
- * 1. 不带 query -> 清空全部收藏
- * 2. 带 key=source+id -> 删除单条收藏
+ * @swagger
+ * /api/favorites:
+ *   delete:
+ *     summary: 删除收藏
+ *     description: 删除收藏，支持删除单条或清空全部
+ *     tags:
+ *       - 收藏
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: key
+ *         schema:
+ *           type: string
+ *         description: 收藏键值，格式为 source+id（删除单条时使用）
+ *       - in: query
+ *         name: id
+ *         schema:
+ *           type: string
+ *         description: 视频ID（需配合source使用）
+ *       - in: query
+ *         name: source
+ *         schema:
+ *           type: string
+ *         description: 视频来源（需配合id使用）
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: 参数格式错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未授权或用户不存在/被封禁
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 export async function DELETE(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
-    const authInfo = getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -166,6 +314,8 @@ export async function DELETE(request: NextRequest) {
     const username = authInfo.username;
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
+    const id = searchParams.get('id');
+    const source = searchParams.get('source');
 
     if (key) {
       // 删除单条
@@ -177,9 +327,17 @@ export async function DELETE(request: NextRequest) {
         );
       }
       await db.deleteFavorite(username, source, id);
+    } else if (id && source) {
+      await db.deleteFavorite(username, source, id);
     } else {
-      // 清空全部
-      await db.deleteAllFavorites(username);
+      const favorites = await db.getAllFavorites(username);
+      await Promise.all(
+        Object.keys(favorites).map(async (favKey) => {
+          const [favSource, favId] = favKey.split('+');
+          if (!favSource || !favId) return;
+          await db.deleteFavorite(username, favSource, favId);
+        })
+      );
     }
 
     return NextResponse.json({ success: true }, { status: 200 });

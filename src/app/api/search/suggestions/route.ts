@@ -3,17 +3,64 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { AdminConfig } from '@/lib/admin.types';
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuth } from '@/lib/auth';
 import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
 import { yellowWords } from '@/lib/yellow';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/search/suggestions:
+ *   get:
+ *     summary: 获取搜索建议
+ *     description: 根据输入的关键词获取搜索建议
+ *     tags:
+ *       - 搜索
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 搜索关键词
+ *     responses:
+ *       200:
+ *         description: 返回搜索建议列表
+ *         headers:
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 suggestions:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/SearchSuggestion'
+ *       401:
+ *         description: 未授权
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 获取搜索建议失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function GET(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
-    const authInfo = getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuth(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -27,7 +74,11 @@ export async function GET(request: NextRequest) {
     }
 
     // 生成建议
-    const suggestions = await generateSuggestions(config, query, authInfo.username);
+    const suggestions = await generateSuggestions(
+      config,
+      query,
+      authInfo.username
+    );
 
     // 从配置中获取缓存时间，如果没有配置则使用默认值300秒（5分钟）
     const cacheTime = config.SiteConfig.SiteInterfaceCacheTime || 300;
@@ -49,7 +100,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function generateSuggestions(config: AdminConfig, query: string, username: string): Promise<
+async function generateSuggestions(
+  config: AdminConfig,
+  query: string,
+  username: string
+): Promise<
   Array<{
     text: string;
     type: 'exact' | 'related' | 'suggestion';
@@ -69,7 +124,13 @@ async function generateSuggestions(config: AdminConfig, query: string, username:
     realKeywords = Array.from(
       new Set(
         results
-          .filter((r: any) => config.SiteConfig.DisableYellowFilter || !yellowWords.some((word: string) => (r.type_name || '').includes(word)))
+          .filter(
+            (r: any) =>
+              config.SiteConfig.DisableYellowFilter ||
+              !yellowWords.some((word: string) =>
+                (r.type_name || '').includes(word)
+              )
+          )
           .map((r: any) => r.title)
           .filter(Boolean)
           .flatMap((title: string) => title.split(/[ -:：·、-]/))

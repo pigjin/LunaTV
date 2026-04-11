@@ -1,9 +1,9 @@
-/* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { AdminConfig } from './admin.types';
 import { KvrocksStorage } from './kvrocks.db';
 import { RedisStorage } from './redis.db';
-import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
+import { Favorite, IStorage, PlayRecord, RefreshTokenRecord, SkipConfig } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
 // storage type 常量: 'localstorage' | 'redis' | 'upstash'，默认 'localstorage'
@@ -15,17 +15,21 @@ const STORAGE_TYPE =
     | 'kvrocks'
     | undefined) || 'localstorage';
 
+console.log('[DbManager] Storage Type:', STORAGE_TYPE);
+
 // 创建存储实例
 function createStorage(): IStorage {
+  console.log('[DbManager] Initializing storage for type:', STORAGE_TYPE);
   switch (STORAGE_TYPE) {
     case 'redis':
-      return new RedisStorage();
+      return new RedisStorage(); // 使用默认 redis url
     case 'upstash':
       return new UpstashRedisStorage();
     case 'kvrocks':
       return new KvrocksStorage();
     case 'localstorage':
     default:
+      console.warn('[DbManager] Using localstorage mode - Persistent Refresh Tokens NOT AVAILABLE in backend');
       return null as unknown as IStorage;
   }
 }
@@ -48,28 +52,15 @@ export function generateStorageKey(source: string, id: string): string {
 // 导出便捷方法
 export class DbManager {
   private storage: IStorage;
-  private migrationPromise: Promise<void> | null = null;
 
   constructor() {
     this.storage = getStorage();
-    // 启动时自动触发数据迁移（异步，不阻塞构造）
-    if (this.storage && typeof this.storage.migrateData === 'function') {
-      this.migrationPromise = this.storage.migrateData().then(async () => {
-        // 数据结构迁移完成后，执行密码哈希迁移
-        if (typeof this.storage.migratePasswords === 'function') {
-          await this.storage.migratePasswords();
-        }
-      }).catch((err) => {
-        console.error('数据迁移异常:', err);
-      });
-    }
-  }
-
-  /** 等待迁移完成（内部方法，首次调用后 migrationPromise 会被置空） */
-  private async ensureMigrated(): Promise<void> {
-    if (this.migrationPromise) {
-      await this.migrationPromise;
-      this.migrationPromise = null;
+    if (!this.storage) {
+      console.warn(
+        '[DbManager] Storage is NULL. DB operations will fail or be no-ops.',
+      );
+    } else {
+      console.log('[DbManager] Storage initialized successfully.');
     }
   }
 
@@ -77,7 +68,7 @@ export class DbManager {
   async getPlayRecord(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<PlayRecord | null> {
     const key = generateStorageKey(source, id);
     return this.storage.getPlayRecord(userName, key);
@@ -87,7 +78,7 @@ export class DbManager {
     userName: string,
     source: string,
     id: string,
-    record: PlayRecord
+    record: PlayRecord,
   ): Promise<void> {
     const key = generateStorageKey(source, id);
     await this.storage.setPlayRecord(userName, key, record);
@@ -96,28 +87,23 @@ export class DbManager {
   async getAllPlayRecords(userName: string): Promise<{
     [key: string]: PlayRecord;
   }> {
-    await this.ensureMigrated();
     return this.storage.getAllPlayRecords(userName);
   }
 
   async deletePlayRecord(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<void> {
     const key = generateStorageKey(source, id);
     await this.storage.deletePlayRecord(userName, key);
-  }
-
-  async deleteAllPlayRecords(userName: string): Promise<void> {
-    await this.storage.deleteAllPlayRecords(userName);
   }
 
   // 收藏相关方法
   async getFavorite(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<Favorite | null> {
     const key = generateStorageKey(source, id);
     return this.storage.getFavorite(userName, key);
@@ -127,36 +113,31 @@ export class DbManager {
     userName: string,
     source: string,
     id: string,
-    favorite: Favorite
+    favorite: Favorite,
   ): Promise<void> {
     const key = generateStorageKey(source, id);
     await this.storage.setFavorite(userName, key, favorite);
   }
 
   async getAllFavorites(
-    userName: string
+    userName: string,
   ): Promise<{ [key: string]: Favorite }> {
-    await this.ensureMigrated();
     return this.storage.getAllFavorites(userName);
   }
 
   async deleteFavorite(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<void> {
     const key = generateStorageKey(source, id);
     await this.storage.deleteFavorite(userName, key);
   }
 
-  async deleteAllFavorites(userName: string): Promise<void> {
-    await this.storage.deleteAllFavorites(userName);
-  }
-
   async isFavorited(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<boolean> {
     const favorite = await this.getFavorite(userName, source, id);
     return favorite !== null;
@@ -223,7 +204,7 @@ export class DbManager {
   async getSkipConfig(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<SkipConfig | null> {
     if (typeof (this.storage as any).getSkipConfig === 'function') {
       return (this.storage as any).getSkipConfig(userName, source, id);
@@ -235,7 +216,7 @@ export class DbManager {
     userName: string,
     source: string,
     id: string,
-    config: SkipConfig
+    config: SkipConfig,
   ): Promise<void> {
     if (typeof (this.storage as any).setSkipConfig === 'function') {
       await (this.storage as any).setSkipConfig(userName, source, id, config);
@@ -245,7 +226,7 @@ export class DbManager {
   async deleteSkipConfig(
     userName: string,
     source: string,
-    id: string
+    id: string,
   ): Promise<void> {
     if (typeof (this.storage as any).deleteSkipConfig === 'function') {
       await (this.storage as any).deleteSkipConfig(userName, source, id);
@@ -253,12 +234,67 @@ export class DbManager {
   }
 
   async getAllSkipConfigs(
-    userName: string
+    userName: string,
   ): Promise<{ [key: string]: SkipConfig }> {
     if (typeof (this.storage as any).getAllSkipConfigs === 'function') {
       return (this.storage as any).getAllSkipConfigs(userName);
     }
     return {};
+  }
+
+  // ---------- Refresh Token ----------
+  async storeRefreshToken(
+    clientPlatform: string,
+    refreshToken: string,
+    payload: {
+      username?: string;
+      role: 'owner' | 'admin' | 'user';
+      type: 'local' | 'db';
+    },
+    expiresIn: number,
+  ): Promise<void> {
+    if (typeof this.storage?.storeRefreshToken === 'function') {
+      await this.storage.storeRefreshToken(
+        clientPlatform,
+        refreshToken,
+        payload,
+        expiresIn,
+      );
+    }
+  }
+
+  async getRefreshToken(
+    clientPlatform: string,
+    refreshToken: string,
+  ): Promise<RefreshTokenRecord | null> {
+    if (typeof this.storage?.getRefreshToken === 'function') {
+      return this.storage.getRefreshToken(clientPlatform, refreshToken);
+    }
+    return null;
+  }
+
+  async revokeRefreshToken(
+    clientPlatform: string,
+    refreshToken: string,
+  ): Promise<void> {
+    if (typeof this.storage?.revokeRefreshToken === 'function') {
+      await this.storage.revokeRefreshToken(clientPlatform, refreshToken);
+    }
+  }
+
+  async revokeUserRefreshTokens(
+    clientPlatform: string,
+    username?: string,
+  ): Promise<void> {
+    if (typeof this.storage?.revokeUserRefreshTokens === 'function') {
+      await this.storage.revokeUserRefreshTokens(clientPlatform, username);
+    }
+  }
+
+  async cleanupExpiredRefreshTokens(): Promise<void> {
+    if (typeof this.storage?.cleanupExpiredRefreshTokens === 'function') {
+      await this.storage.cleanupExpiredRefreshTokens();
+    }
   }
 
   // ---------- 数据清理 ----------

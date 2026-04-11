@@ -1,8 +1,19 @@
-/* eslint-disable no-console,@typescript-eslint/no-explicit-any */
+/* eslint-disable no-console */
 import { NextRequest, NextResponse } from 'next/server';
 
+import {
+  ACCESS_TOKEN_EXPIRES_IN,
+  ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+  REFRESH_TOKEN_EXPIRES_IN,
+  REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+} from '@/lib/auth-constants';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
+import { signAccessToken, signRefreshToken } from '@/lib/jwt';
+import {
+  revokeUserRefreshTokens,
+  storeRefreshToken,
+} from '@/lib/refresh-token';
 
 export const runtime = 'nodejs';
 
@@ -15,78 +26,89 @@ const STORAGE_TYPE =
     | 'kvrocks'
     | undefined) || 'localstorage';
 
-// 生成签名
-async function generateSignature(
-  data: string,
-  secret: string
-): Promise<string> {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  const messageData = encoder.encode(data);
-
-  // 导入密钥
-  const key = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-
-  // 生成签名
-  const signature = await crypto.subtle.sign('HMAC', key, messageData);
-
-  // 转换为十六进制字符串
-  return Array.from(new Uint8Array(signature))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-// 生成认证Cookie（带签名）
-async function generateAuthCookie(
-  username?: string,
-  password?: string,
-  role?: 'owner' | 'admin' | 'user',
-  includePassword = false
-): Promise<string> {
-  const authData: any = { role: role || 'user' };
-
-  // 只在需要时包含 password
-  if (includePassword && password) {
-    authData.password = password;
-  }
-
-  if (username && process.env.PASSWORD) {
-    authData.username = username;
-    // 使用密码作为密钥对用户名进行签名
-    const signature = await generateSignature(username, process.env.PASSWORD);
-    authData.signature = signature;
-    authData.timestamp = Date.now(); // 添加时间戳防重放攻击
-  }
-
-  return encodeURIComponent(JSON.stringify(authData));
-}
-
+/**
+ * @swagger
+ * /api/login:
+ *   post:
+ *     summary: 用户登录
+ *     description: 用户登录接口，支持本地存储模式和数据库模式
+ *     tags:
+ *       - 认证
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 description: 密码（本地存储模式）
+ *               username:
+ *                 type: string
+ *                 description: 用户名（数据库模式）
+ *             oneOf:
+ *               - required: [password]
+ *               - required: [username, password]
+ *     responses:
+ *       200:
+ *         description: 登录成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 accessToken:
+ *                   type: string
+ *                   description: Access Token (短期有效，1小时)
+ *                 refreshToken:
+ *                   type: string
+ *                   description: Refresh Token (长期有效，30天)
+ *                 expiresIn:
+ *                   type: integer
+ *                   description: Access Token 过期时间戳（Unix 时间戳，单位：秒）
+ *                 role:
+ *                   type: string
+ *                   enum: [user, owner, admin]
+ *                 username:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: 请求参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 用户名或密码错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: 服务器错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function POST(req: NextRequest) {
   try {
+    const clientPlatform = req.headers.get('X-Client-Platform') || 'web';
     // 本地 / localStorage 模式——仅校验固定密码
     if (STORAGE_TYPE === 'localstorage') {
       const envPassword = process.env.PASSWORD;
 
       // 未配置 PASSWORD 时直接放行
       if (!envPassword) {
-        const response = NextResponse.json({ ok: true });
-
-        // 清除可能存在的认证cookie
-        response.cookies.set('auth', '', {
-          path: '/',
-          expires: new Date(0),
-          sameSite: 'lax', // 改为 lax 以支持 PWA
-          httpOnly: false, // PWA 需要客户端可访问
-          secure: false, // 根据协议自动设置
-        });
-
-        return response;
+        return NextResponse.json({ ok: true });
       }
 
       const { password } = await req.json();
@@ -101,26 +123,37 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // 验证成功，设置认证cookie
-      const response = NextResponse.json({ ok: true });
-      const cookieValue = await generateAuthCookie(
-        undefined,
-        password,
-        'user',
-        true
-      ); // localstorage 模式包含 password
-      const expires = new Date();
-      expires.setDate(expires.getDate() + 7); // 7天过期
+      // 验证成功，生成 Access Token 和 Refresh Token
+      const payload = {
+        role: 'user' as const,
+        type: 'local' as const,
+      };
 
-      response.cookies.set('auth', cookieValue, {
-        path: '/',
-        expires,
-        sameSite: 'lax', // 改为 lax 以支持 PWA
-        httpOnly: false, // PWA 需要客户端可访问
-        secure: false, // 根据协议自动设置
+      // 先撤销该用户之前的 refresh token（如果有）
+      await revokeUserRefreshTokens(clientPlatform);
+
+      const accessToken = await signAccessToken(payload, ACCESS_TOKEN_EXPIRES_IN);
+      const refreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
+
+      // 存储 refresh token
+      await storeRefreshToken(
+        clientPlatform,
+        refreshToken,
+        payload,
+        REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+      );
+
+      // 计算 access token 过期时间戳（1小时后）
+      const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;
+
+      return NextResponse.json({
+        ok: true,
+        accessToken,
+        refreshToken,
+        expiresIn,
+        role: 'user',
+        username: undefined,
       });
-
-      return response;
     }
 
     // 数据库 / redis 模式——校验用户名并尝试连接数据库
@@ -138,26 +171,38 @@ export async function POST(req: NextRequest) {
       username === process.env.USERNAME &&
       password === process.env.PASSWORD
     ) {
-      // 验证成功，设置认证cookie
-      const response = NextResponse.json({ ok: true });
-      const cookieValue = await generateAuthCookie(
+      // 验证成功，生成 Access Token 和 Refresh Token
+      const payload = {
         username,
-        password,
-        'owner',
-        false
-      ); // 数据库模式不包含 password
-      const expires = new Date();
-      expires.setDate(expires.getDate() + 7); // 7天过期
+        role: 'owner' as const,
+        type: 'db' as const,
+      };
 
-      response.cookies.set('auth', cookieValue, {
-        path: '/',
-        expires,
-        sameSite: 'lax', // 改为 lax 以支持 PWA
-        httpOnly: false, // PWA 需要客户端可访问
-        secure: false, // 根据协议自动设置
+      // 先撤销该用户之前的 refresh token
+      await revokeUserRefreshTokens(clientPlatform, username);
+
+      const accessToken = await signAccessToken(payload, ACCESS_TOKEN_EXPIRES_IN);
+      const refreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
+
+      // 存储 refresh token
+      await storeRefreshToken(
+        clientPlatform,
+        refreshToken,
+        payload,
+        REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+      );
+
+      // 计算 access token 过期时间戳（1小时后）
+      const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;
+
+      return NextResponse.json({
+        ok: true,
+        accessToken,
+        refreshToken,
+        expiresIn,
+        role: 'owner',
+        username,
       });
-
-      return response;
     } else if (username === process.env.USERNAME) {
       return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
     }
@@ -178,26 +223,38 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // 验证成功，设置认证cookie
-      const response = NextResponse.json({ ok: true });
-      const cookieValue = await generateAuthCookie(
+      // 验证成功，生成 Access Token 和 Refresh Token
+      const payload = {
         username,
-        password,
-        user?.role || 'user',
-        false
-      ); // 数据库模式不包含 password
-      const expires = new Date();
-      expires.setDate(expires.getDate() + 7); // 7天过期
+        role: (user?.role || 'user') as 'owner' | 'admin' | 'user',
+        type: 'db' as const,
+      };
 
-      response.cookies.set('auth', cookieValue, {
-        path: '/',
-        expires,
-        sameSite: 'lax', // 改为 lax 以支持 PWA
-        httpOnly: false, // PWA 需要客户端可访问
-        secure: false, // 根据协议自动设置
+      // 先撤销该用户之前的 refresh token
+      await revokeUserRefreshTokens(clientPlatform, username);
+
+      const accessToken = await signAccessToken(payload, ACCESS_TOKEN_EXPIRES_IN);
+      const refreshToken = await signRefreshToken(payload, REFRESH_TOKEN_EXPIRES_IN);
+
+      // 存储 refresh token
+      await storeRefreshToken(
+        clientPlatform,
+        refreshToken,
+        payload,
+        REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+      );
+
+      // 计算 access token 过期时间戳（1小时后）
+      const expiresIn = Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRES_IN_SECONDS;
+
+      return NextResponse.json({
+        ok: true,
+        accessToken,
+        refreshToken,
+        expiresIn,
+        role: user?.role || 'user',
+        username,
       });
-
-      return response;
     } catch (err) {
       console.error('数据库验证失败', err);
       return NextResponse.json({ error: '数据库错误' }, { status: 500 });
