@@ -1778,13 +1778,46 @@ export default function LivePage() {
 }
 
 function LivePageGuard() {
-  const [enabled] = useState<boolean | null>(() => {
-    if (typeof window === 'undefined') {
-      return null;
-    }
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
     const runtimeConfig = (window as any).RUNTIME_CONFIG;
-    return runtimeConfig?.ENABLE_WEB_LIVE !== false;
-  });
+    const fallbackEnabled = runtimeConfig?.ENABLE_WEB_LIVE !== false;
+
+    fetch('/api/server-config', { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('获取服务器配置失败');
+        }
+        return response.json();
+      })
+      .then((serverConfig) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (typeof serverConfig?.EnableWebLive === 'boolean') {
+          (window as any).RUNTIME_CONFIG = {
+            ...runtimeConfig,
+            ENABLE_WEB_LIVE: serverConfig.EnableWebLive,
+          };
+          setEnabled(serverConfig.EnableWebLive);
+          return;
+        }
+
+        setEnabled(fallbackEnabled);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEnabled(fallbackEnabled);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (enabled === null) {
     return <div>Loading...</div>;

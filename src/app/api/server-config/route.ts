@@ -33,6 +33,9 @@ export const runtime = 'nodejs';
  *                 Version:
  *                   type: string
  *                   description: 当前版本号
+ *                 EnableWebLive:
+ *                   type: boolean
+ *                   description: 是否启用网页直播
  */
 export async function GET(request: NextRequest) {
   console.log('server-config called: ', request.url);
@@ -42,6 +45,7 @@ export async function GET(request: NextRequest) {
     SiteName: config.SiteConfig.SiteName,
     StorageType: process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage',
     Version: CURRENT_VERSION,
+    EnableWebLive: config.SiteConfig.EnableWebLive ?? false,
   };
   return NextResponse.json(result);
 }

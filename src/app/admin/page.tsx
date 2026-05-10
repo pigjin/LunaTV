@@ -298,7 +298,40 @@ interface SiteConfig {
   DoubanImageProxy: string;
   DisableYellowFilter: boolean;
   FluidSearch: boolean;
+  EnableWebLive: boolean;
 }
+
+const syncRuntimeConfig = (
+  siteConfig: SiteConfig,
+  customCategories?: AdminConfig['CustomCategories']
+) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const runtimeConfig = (window as any).RUNTIME_CONFIG || {};
+  (window as any).RUNTIME_CONFIG = {
+    ...runtimeConfig,
+    DOUBAN_PROXY_TYPE: siteConfig.DoubanProxyType,
+    DOUBAN_PROXY: siteConfig.DoubanProxy,
+    DOUBAN_IMAGE_PROXY_TYPE: siteConfig.DoubanImageProxyType,
+    DOUBAN_IMAGE_PROXY: siteConfig.DoubanImageProxy,
+    DISABLE_YELLOW_FILTER: siteConfig.DisableYellowFilter,
+    FLUID_SEARCH: siteConfig.FluidSearch,
+    ENABLE_WEB_LIVE: siteConfig.EnableWebLive,
+    ...(customCategories
+      ? {
+          CUSTOM_CATEGORIES: customCategories
+            .filter((category) => !category.disabled)
+            .map((category) => ({
+              name: category.name || '',
+              type: category.type,
+              query: category.query,
+            })),
+        }
+      : {}),
+  };
+};
 
 // 视频源数据类型
 interface DataSource {
@@ -4139,6 +4172,7 @@ const SiteConfigComponent = ({
     DoubanImageProxy: '',
     DisableYellowFilter: false,
     FluidSearch: true,
+    EnableWebLive: false,
   });
 
   // 豆瓣数据源相关状态
@@ -4202,6 +4236,7 @@ const SiteConfigComponent = ({
         DoubanImageProxy: config.SiteConfig.DoubanImageProxy || '',
         DisableYellowFilter: config.SiteConfig.DisableYellowFilter || false,
         FluidSearch: config.SiteConfig.FluidSearch ?? true,
+        EnableWebLive: config.SiteConfig.EnableWebLive ?? false,
       });
     }
   }, [config]);
@@ -4272,7 +4307,8 @@ const SiteConfigComponent = ({
           throw new Error(data.error || `保存失败: ${resp.status}`);
         }
 
-        showSuccess('保存成功, 请刷新页面', showAlert);
+        syncRuntimeConfig(siteSettings, config?.CustomCategories);
+        showSuccess('保存成功', showAlert);
         await refreshConfig();
       } catch (err) {
         showError(err instanceof Error ? err.message : '保存失败', showAlert);
@@ -4647,6 +4683,42 @@ const SiteConfigComponent = ({
         </div>
         <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
           启用后搜索结果将实时流式返回，提升用户体验。
+        </p>
+      </div>
+
+      {/* 网页直播 */}
+      <div>
+        <div className='flex items-center justify-between'>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+            启用网页直播
+          </label>
+          <button
+            type='button'
+            onClick={() =>
+              setSiteSettings((prev) => ({
+                ...prev,
+                EnableWebLive: !prev.EnableWebLive,
+              }))
+            }
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+              siteSettings.EnableWebLive
+                ? buttonStyles.toggleOn
+                : buttonStyles.toggleOff
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full ${
+                buttonStyles.toggleThumb
+              } transition-transform ${
+                siteSettings.EnableWebLive
+                  ? buttonStyles.toggleThumbOn
+                  : buttonStyles.toggleThumbOff
+              }`}
+            />
+          </button>
+        </div>
+        <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+          启用后用户可以访问网页直播页面并播放已配置的直播源。
         </p>
       </div>
 
@@ -5338,6 +5410,7 @@ function AdminPageClient() {
       const data = (await response.json()) as AdminConfigResult;
       setConfig(data.Config);
       setRole(data.Role);
+      syncRuntimeConfig(data.Config.SiteConfig, data.Config.CustomCategories);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '获取配置失败';
       showError(msg, showAlert);

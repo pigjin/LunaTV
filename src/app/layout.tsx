@@ -56,7 +56,7 @@ export default async function RootLayout({
   let disableYellowFilter =
     process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true';
   let fluidSearch = process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false';
-  let enableWebLive = false;
+  let enableWebLive = process.env.NEXT_PUBLIC_ENABLE_WEB_LIVE === 'true';
   let customCategories = [] as {
     name: string;
     type: 'movie' | 'tv';
