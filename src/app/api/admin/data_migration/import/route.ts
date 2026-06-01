@@ -13,6 +13,71 @@ export const runtime = 'nodejs';
 
 const gunzipAsync = promisify(gunzip);
 
+/**
+ * @swagger
+ * /api/admin/data_migration/import:
+ *   post:
+ *     summary: 导入备份数据
+ *     description: 站长接口，上传并解密备份文件，清空现有数据后导入管理员配置和用户数据。
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *               - password
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: 由导出接口生成的 .dat 备份文件
+ *               password:
+ *                 type: string
+ *                 description: 解密备份文件的密码
+ *     responses:
+ *       200:
+ *         description: 数据导入成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 importedUsers:
+ *                   type: integer
+ *                   description: 导入的用户数量
+ *                 timestamp:
+ *                   type: string
+ *                   description: 备份生成时间
+ *                 serverVersion:
+ *                   type: string
+ *                   description: 备份文件中的服务端版本
+ *       400:
+ *         description: 当前存储类型不支持数据迁移、缺少文件/密码、解密失败或备份格式错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未登录或非站长用户
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 导入失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function POST(req: NextRequest) {
   try {
     // 检查存储类型

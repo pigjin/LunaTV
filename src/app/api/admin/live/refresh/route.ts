@@ -9,6 +9,42 @@ import { refreshLiveChannels } from '@/lib/live';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/admin/live/refresh:
+ *   post:
+ *     summary: 刷新所有直播源频道
+ *     description: 管理员接口，并发刷新所有启用直播源的频道数量并保存到配置。
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 直播源刷新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: 权限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 刷新失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function POST(request: NextRequest) {
   try {
     // 权限检查

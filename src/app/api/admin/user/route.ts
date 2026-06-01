@@ -23,6 +23,117 @@ const ACTIONS = [
   'batchUpdateUserGroups',
 ] as const;
 
+/**
+ * @swagger
+ * /api/admin/user:
+ *   post:
+ *     summary: 管理用户和用户组
+ *     description: 管理员接口，支持新增用户、封禁/解封、管理员权限、密码、视频源权限、用户组和批量用户组配置。
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum:
+ *                   - add
+ *                   - ban
+ *                   - unban
+ *                   - setAdmin
+ *                   - cancelAdmin
+ *                   - changePassword
+ *                   - deleteUser
+ *                   - updateUserApis
+ *                   - userGroup
+ *                   - updateUserGroups
+ *                   - batchUpdateUserGroups
+ *                 description: 操作类型
+ *               targetUsername:
+ *                 type: string
+ *                 description: 目标用户名，除 userGroup 和 batchUpdateUserGroups 外通常必填
+ *               targetPassword:
+ *                 type: string
+ *                 description: 目标用户密码，add/changePassword 时必填
+ *               enabledApis:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 用户或用户组可用视频源 key 列表
+ *               userGroup:
+ *                 type: string
+ *                 description: 新增用户时指定的用户组名称
+ *               groupAction:
+ *                 type: string
+ *                 enum: [add, edit, delete]
+ *                 description: 用户组操作类型，action=userGroup 时必填
+ *               groupName:
+ *                 type: string
+ *                 description: 用户组名称，action=userGroup 时必填
+ *               userGroups:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 要分配给用户的用户组列表
+ *               usernames:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 批量更新用户组的用户名列表
+ *     responses:
+ *       200:
+ *         description: 操作成功
+ *         headers:
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                   example: true
+ *       400:
+ *         description: 参数错误、用户状态不允许或当前存储类型不支持管理员配置
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未登录或权限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 目标用户或用户组不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 用户管理操作失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType === 'localstorage') {

@@ -8,6 +8,48 @@ import { API_CONFIG } from '@/lib/config';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/admin/source/validate:
+ *   get:
+ *     summary: 流式验证视频源
+ *     description: 管理员接口，使用搜索关键词验证所有视频源可用性，并通过 Server-Sent Events 返回进度。
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 用于验证视频源的搜索关键词
+ *     responses:
+ *       200:
+ *         description: 返回 text/event-stream 流式验证事件
+ *         content:
+ *           text/event-stream:
+ *             schema:
+ *               type: string
+ *               description: SSE 事件，包含 start、source_result、source_error 和 complete 类型
+ *             examples:
+ *               source_result:
+ *                 summary: 单个视频源验证结果
+ *                 value: 'data: {"type":"source_result","source":"example","status":"valid"}'
+ *       400:
+ *         description: 搜索关键词为空
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未授权
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function GET(request: NextRequest) {
   const authInfo = await verifyAuth(request);
   if (!authInfo || !authInfo.username) {

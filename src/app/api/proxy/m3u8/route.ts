@@ -7,6 +7,79 @@ import { getBaseUrl, resolveUrl } from '@/lib/live';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/proxy/m3u8:
+ *   get:
+ *     summary: 代理并重写 M3U8 播放列表
+ *     description: 按直播源配置的 User-Agent 获取 M3U8，必要时重写片段、密钥和嵌套 M3U8 地址为本地代理地址。
+ *     tags:
+ *       - 代理
+ *     parameters:
+ *       - in: query
+ *         name: url
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 已编码的 M3U8 地址
+ *       - in: query
+ *         name: moontv-source
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 直播源标识，用于读取该直播源的 User-Agent
+ *       - in: query
+ *         name: allowCORS
+ *         required: false
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: 为 true 时保留原始片段地址，不改写为代理地址
+ *       - in: query
+ *         name: token
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: 重写代理 URL 时透传的访问令牌
+ *     responses:
+ *       200:
+ *         description: 返回 M3U8 文本或上游媒体流
+ *         headers:
+ *           Content-Type:
+ *             description: 上游内容类型
+ *             schema:
+ *               type: string
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/vnd.apple.mpegurl:
+ *             schema:
+ *               type: string
+ *           application/octet-stream:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: 缺少 url 参数
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 直播源不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: M3U8 获取失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');

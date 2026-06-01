@@ -6,6 +6,63 @@ import { getConfig } from '@/lib/config';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/proxy/segment:
+ *   get:
+ *     summary: 代理 HLS 媒体片段
+ *     description: 按直播源配置的 User-Agent 代理获取 HLS TS 片段，并以流式响应返回。
+ *     tags:
+ *       - 代理
+ *     parameters:
+ *       - in: query
+ *         name: url
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 已编码的媒体片段地址
+ *       - in: query
+ *         name: moontv-source
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 直播源标识，用于读取该直播源的 User-Agent
+ *     responses:
+ *       200:
+ *         description: 返回 TS 媒体片段流
+ *         headers:
+ *           Content-Type:
+ *             description: 固定为 video/mp2t
+ *             schema:
+ *               type: string
+ *           Content-Length:
+ *             description: 上游返回的内容长度
+ *             schema:
+ *               type: string
+ *         content:
+ *           video/mp2t:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: 缺少 url 参数
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 直播源不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 片段获取失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');

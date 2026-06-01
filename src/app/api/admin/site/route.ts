@@ -8,6 +8,108 @@ import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/admin/site:
+ *   post:
+ *     summary: 更新站点配置
+ *     description: 管理员接口，更新站点名称、公告、搜索、豆瓣代理、内容过滤和 Web 直播开关等配置。
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - SiteName
+ *               - Announcement
+ *               - SearchDownstreamMaxPage
+ *               - SiteInterfaceCacheTime
+ *               - DoubanProxyType
+ *               - DoubanProxy
+ *               - DoubanImageProxyType
+ *               - DoubanImageProxy
+ *               - DisableYellowFilter
+ *               - FluidSearch
+ *               - EnableWebLive
+ *             properties:
+ *               SiteName:
+ *                 type: string
+ *                 description: 站点名称
+ *               Announcement:
+ *                 type: string
+ *                 description: 站点公告
+ *               SearchDownstreamMaxPage:
+ *                 type: number
+ *                 description: 搜索下游最大页数
+ *               SiteInterfaceCacheTime:
+ *                 type: number
+ *                 description: 站点接口缓存时间，单位秒
+ *               DoubanProxyType:
+ *                 type: string
+ *                 description: 豆瓣接口代理类型
+ *               DoubanProxy:
+ *                 type: string
+ *                 description: 豆瓣接口代理地址
+ *               DoubanImageProxyType:
+ *                 type: string
+ *                 description: 豆瓣图片代理类型
+ *               DoubanImageProxy:
+ *                 type: string
+ *                 description: 豆瓣图片代理地址
+ *               DisableYellowFilter:
+ *                 type: boolean
+ *                 description: 是否禁用黄色内容过滤
+ *               FluidSearch:
+ *                 type: boolean
+ *                 description: 是否启用流式搜索
+ *               EnableWebLive:
+ *                 type: boolean
+ *                 description: 是否启用 Web 直播
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ *         headers:
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                   example: true
+ *       400:
+ *         description: 参数格式错误或当前存储类型不支持管理员配置
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未登录或权限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 更新站点配置失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType === 'localstorage') {

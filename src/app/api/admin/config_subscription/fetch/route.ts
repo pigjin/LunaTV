@@ -6,6 +6,63 @@ import { verifyAuth } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/admin/config_subscription/fetch:
+ *   post:
+ *     summary: 拉取配置订阅
+ *     description: 站长接口，从远程订阅地址获取 Base58 编码的配置内容并解码返回。
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - url
+ *             properties:
+ *               url:
+ *                 type: string
+ *                 description: 配置订阅地址
+ *     responses:
+ *       200:
+ *         description: 配置拉取成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 configContent:
+ *                   type: string
+ *                   description: 解码后的配置内容
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: 缺少 URL 参数
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未登录或非站长用户
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       default:
+ *         description: 上游请求失败或配置解码失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function POST(request: NextRequest) {
   try {
     // 权限检查：仅站长可以拉取配置订阅

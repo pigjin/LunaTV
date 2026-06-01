@@ -8,6 +8,60 @@ import { getConfig } from '@/lib/config';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/admin/config:
+ *   get:
+ *     summary: 获取管理员配置
+ *     description: 获取完整管理员配置和当前用户管理角色，仅站长或管理员可访问。
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 返回管理员配置
+ *         headers:
+ *           Cache-Control:
+ *             description: 缓存控制头，管理员配置不缓存
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 Role:
+ *                   type: string
+ *                   enum: [owner, admin]
+ *                   description: 当前用户在管理后台的角色
+ *                 Config:
+ *                   type: object
+ *                   description: 管理员配置对象
+ *       400:
+ *         description: 当前存储类型不支持管理员配置
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未登录或权限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 获取管理员配置失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function GET(request: NextRequest) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType === 'localstorage') {

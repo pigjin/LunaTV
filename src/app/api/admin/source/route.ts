@@ -23,6 +23,97 @@ interface BaseBody {
   action?: Action;
 }
 
+/**
+ * @swagger
+ * /api/admin/source:
+ *   post:
+ *     summary: 管理视频源
+ *     description: 管理员接口，支持新增、启用、禁用、删除、批量操作和排序视频源。
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [add, disable, enable, delete, sort, batch_disable, batch_enable, batch_delete]
+ *                 description: 操作类型
+ *               key:
+ *                 type: string
+ *                 description: 视频源标识，add/disable/enable/delete 时使用
+ *               name:
+ *                 type: string
+ *                 description: 视频源名称，add 时必填
+ *               api:
+ *                 type: string
+ *                 description: 视频源 API 地址，add 时必填
+ *               detail:
+ *                 type: string
+ *                 description: 视频源详情页地址，可选
+ *               keys:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 批量操作的视频源标识列表
+ *               order:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 排序后的视频源 key 列表，sort 时必填
+ *     responses:
+ *       200:
+ *         description: 操作成功
+ *         headers:
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                   example: true
+ *       400:
+ *         description: 参数错误、视频源已存在、视频源不可删除或当前存储类型不支持管理员配置
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未登录或权限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 视频源不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 视频源管理操作失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType === 'localstorage') {

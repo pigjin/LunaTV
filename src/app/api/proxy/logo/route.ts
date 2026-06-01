@@ -6,6 +6,57 @@ import { getConfig } from '@/lib/config';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/proxy/logo:
+ *   get:
+ *     summary: 代理直播频道 Logo
+ *     description: 按直播源配置的 User-Agent 代理获取频道 Logo 图片。
+ *     tags:
+ *       - 代理
+ *     parameters:
+ *       - in: query
+ *         name: url
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 已编码的 Logo 图片地址
+ *       - in: query
+ *         name: moontv-source
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: 直播源标识，用于读取该直播源的 User-Agent
+ *     responses:
+ *       200:
+ *         description: 返回图片数据流
+ *         headers:
+ *           Content-Type:
+ *             description: 图片 MIME 类型
+ *             schema:
+ *               type: string
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           image/*:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: 缺少图片 URL
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       default:
+ *         description: 图片获取失败或上游返回错误状态
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const imageUrl = searchParams.get('url');

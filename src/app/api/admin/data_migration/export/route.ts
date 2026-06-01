@@ -13,6 +13,68 @@ export const runtime = 'nodejs';
 
 const gzipAsync = promisify(gzip);
 
+/**
+ * @swagger
+ * /api/admin/data_migration/export:
+ *   post:
+ *     summary: 导出加密备份数据
+ *     description: 站长接口，导出管理员配置和所有用户数据，使用请求中的密码加密后以文件流返回。
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - password
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 description: 用于加密备份文件的密码
+ *     responses:
+ *       200:
+ *         description: 返回加密后的备份文件
+ *         headers:
+ *           Content-Type:
+ *             description: 固定为 application/octet-stream
+ *             schema:
+ *               type: string
+ *           Content-Disposition:
+ *             description: 下载文件名
+ *             schema:
+ *               type: string
+ *           Content-Length:
+ *             description: 文件内容长度
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/octet-stream:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: 当前存储类型不支持数据迁移或缺少加密密码
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未登录或非站长用户
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 导出失败或无法获取配置
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function POST(req: NextRequest) {
   try {
     // 检查存储类型

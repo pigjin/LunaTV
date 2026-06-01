@@ -9,6 +9,48 @@ import { yellowWords } from '@/lib/yellow';
 
 export const runtime = 'nodejs';
 
+/**
+ * @swagger
+ * /api/search/ws:
+ *   get:
+ *     summary: 流式搜索视频
+ *     description: 使用 Server-Sent Events 并行返回各视频源搜索结果，适用于流式搜索体验。
+ *     tags:
+ *       - 搜索
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 搜索关键词
+ *     responses:
+ *       200:
+ *         description: 返回 text/event-stream 流式搜索事件
+ *         content:
+ *           text/event-stream:
+ *             schema:
+ *               type: string
+ *               description: SSE 事件，包含 start、source_result、source_error 和 complete 类型
+ *             examples:
+ *               source_result:
+ *                 summary: 单个视频源搜索结果
+ *                 value: 'data: {"type":"source_result","source":"example","sourceName":"示例源","results":[],"timestamp":1710000000000}'
+ *       400:
+ *         description: 搜索关键词为空
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未授权
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export async function GET(request: NextRequest) {
   const authInfo = await verifyAuth(request);
   if (!authInfo || !authInfo.username) {

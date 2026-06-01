@@ -15,6 +15,90 @@ interface BaseBody {
   action?: Action;
 }
 
+/**
+ * @swagger
+ * /api/admin/category:
+ *   post:
+ *     summary: 管理自定义豆瓣分类
+ *     description: 管理员接口，支持新增、启用、禁用、删除和排序自定义豆瓣分类。
+ *     tags:
+ *       - 管理
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [add, disable, enable, delete, sort]
+ *                 description: 操作类型
+ *               name:
+ *                 type: string
+ *                 description: 分类名称，add 时必填
+ *               type:
+ *                 type: string
+ *                 enum: [movie, tv]
+ *                 description: 分类类型，add/disable/enable/delete 时必填
+ *               query:
+ *                 type: string
+ *                 description: 豆瓣查询参数，add/disable/enable/delete 时必填
+ *               order:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: 排序键列表，格式为 query:type，sort 时必填
+ *     responses:
+ *       200:
+ *         description: 操作成功
+ *         headers:
+ *           Cache-Control:
+ *             description: 缓存控制头
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                   example: true
+ *       400:
+ *         description: 参数错误、分类已存在或当前存储类型不支持管理员配置
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: 未登录或权限不足
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 分类不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: 分类管理操作失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType === 'localstorage') {
