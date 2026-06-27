@@ -11,6 +11,19 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '100.1.4',
+    date: '2026-06-27',
+    added: [
+      // 无新增内容
+    ],
+    changed: [
+      // 无变更内容
+    ],
+    fixed: [
+      '修复 Docker 依赖安装阶段未复制 pnpm 配置，导致 pnpm 11 最小发布时间策略排除项未生效的问题',
+    ],
+  },
+  {
     version: '100.1.3',
     date: '2026-06-27',
     added: [
