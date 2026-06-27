@@ -4,7 +4,13 @@ import { Redis } from '@upstash/redis';
 
 import { AdminConfig } from './admin.types';
 import { hashPassword, isHashed, verifyPassword } from './password';
-import { Favorite, IStorage, PlayRecord, RefreshTokenRecord, SkipConfig } from './types';
+import {
+  Favorite,
+  IStorage,
+  PlayRecord,
+  RefreshTokenRecord,
+  SkipConfig,
+} from './types';
 
 // 搜索历史最大条数
 const SEARCH_HISTORY_LIMIT = 20;
@@ -21,7 +27,7 @@ function ensureStringArray(value: any[]): string[] {
 // 添加Upstash Redis操作重试包装器
 async function withRetry<T>(
   operation: () => Promise<T>,
-  maxRetries = 3
+  maxRetries = 3,
 ): Promise<T> {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -38,7 +44,7 @@ async function withRetry<T>(
 
       if (isConnectionError && !isLastAttempt) {
         console.log(
-          `Upstash Redis operation failed, retrying... (${i + 1}/${maxRetries})`
+          `Upstash Redis operation failed, retrying... (${i + 1}/${maxRetries})`,
         );
         console.error('Error:', err.message);
 
@@ -157,6 +163,15 @@ export class UpstashRedisStorage implements IStorage {
   async registerUser(userName: string, password: string): Promise<void> {
     const hashed = hashPassword(password);
     await withRetry(() => this.client.set(this.userPwdKey(userName), hashed));
+  }
+
+  async restoreUserPassword(
+    userName: string,
+    storedPassword: string,
+  ): Promise<void> {
+    await withRetry(() =>
+      this.client.set(this.userPwdKey(userName), ensureString(storedPassword)),
+    );
   }
 
   async verifyUser(userName: string, password: string): Promise<boolean> {
@@ -279,6 +294,34 @@ export class UpstashRedisStorage implements IStorage {
 
   async setAdminConfig(config: AdminConfig): Promise<void> {
     await withRetry(() => this.client.set(this.adminConfigKey(), config));
+  }
+
+  async hasAnyData(): Promise<boolean> {
+    const adminConfig = await withRetry(() =>
+      this.client.get(this.adminConfigKey()),
+    );
+    if (adminConfig !== null) {
+      return true;
+    }
+
+    const keyPatterns = [
+      'u:*:pwd',
+      'u:*:pr:*',
+      'u:*:fav:*',
+      'u:*:skip:*',
+      'u:*:sh',
+      'rt:*',
+      'rtu:*',
+    ];
+
+    for (const pattern of keyPatterns) {
+      const keys = await withRetry(() => this.client.keys(pattern));
+      if (keys.length > 0) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // ---------- 跳过片头片尾配置 ----------
@@ -485,9 +528,7 @@ export class UpstashRedisStorage implements IStorage {
         const tokenStr = ensureString(token);
         // 删除 token 记录
         await withRetry(() =>
-          this.client.del(
-            this.refreshTokenKey(clientPlatform, tokenStr),
-          ),
+          this.client.del(this.refreshTokenKey(clientPlatform, tokenStr)),
         );
 
         // 从用户的 token 集合中移除该平台的记录
@@ -567,7 +608,7 @@ function getUpstashRedisClient(): Redis {
 
     if (!upstashUrl || !upstashToken) {
       throw new Error(
-        'UPSTASH_URL and UPSTASH_TOKEN env variables must be set'
+        'UPSTASH_URL and UPSTASH_TOKEN env variables must be set',
       );
     }
 

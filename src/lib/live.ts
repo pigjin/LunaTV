@@ -1,7 +1,4 @@
-/* eslint-disable no-constant-condition */
-
-import { getConfig } from '@/lib/config';
-import { db } from '@/lib/db';
+import { getConfig, saveConfig } from '@/lib/config';
 
 const defaultUA = 'AptvPlayer/1.4.10';
 
@@ -32,10 +29,10 @@ export function deleteCachedLiveChannels(key: string) {
 }
 
 export async function getCachedLiveChannels(
-  key: string
+  key: string,
 ): Promise<LiveChannels | null> {
   if (!cachedLiveChannels[key]) {
-    const config = await getConfig();
+    const config = await getConfig({ forceRefresh: true });
     const liveInfo = config.LiveConfig?.find((live) => live.key === key);
     if (!liveInfo) {
       return null;
@@ -45,7 +42,7 @@ export async function getCachedLiveChannels(
       return null;
     }
     liveInfo.channelNumber = channelNum;
-    await db.saveAdminConfig(config);
+    await saveConfig(config);
   }
   return cachedLiveChannels[key] || null;
 }
@@ -75,7 +72,7 @@ export async function refreshLiveChannels(liveInfo: {
   const epgs = await parseEpg(
     epgUrl,
     liveInfo.ua || defaultUA,
-    result.channels.map((channel) => channel.tvgId).filter((tvgId) => tvgId)
+    result.channels.map((channel) => channel.tvgId).filter((tvgId) => tvgId),
   );
   cachedLiveChannels[liveInfo.key] = {
     channelNumber: result.channels.length,
@@ -89,7 +86,7 @@ export async function refreshLiveChannels(liveInfo: {
 async function parseEpg(
   epgUrl: string,
   ua: string,
-  tvgIds: string[]
+  tvgIds: string[],
 ): Promise<{
   [key: string]: {
     start: string;
@@ -172,7 +169,7 @@ async function parseEpg(
         ) {
           // 处理带有语言属性的title标签，如 <title lang="zh">远方的家2025-60</title>
           const titleMatch = trimmedLine.match(
-            /<title(?:\s+[^>]*)?>(.*?)<\/title>/
+            /<title(?:\s+[^>]*)?>(.*?)<\/title>/,
           );
           if (titleMatch && currentProgram) {
             currentProgram.title = titleMatch[1];
@@ -194,7 +191,7 @@ async function parseEpg(
         }
       }
     }
-  } catch (error) {
+  } catch {
     // ignore
   }
 
@@ -208,7 +205,7 @@ async function parseEpg(
  */
 function parseM3U(
   sourceKey: string,
-  m3uContent: string
+  m3uContent: string,
 ): {
   tvgUrl: string;
   channels: {
@@ -319,7 +316,7 @@ export function resolveUrl(baseUrl: string, relativePath: string) {
     const baseUrlObj = new URL(baseUrl);
     const resolvedUrl = new URL(relativePath, baseUrlObj);
     return resolvedUrl.href;
-  } catch (error) {
+  } catch {
     // 降级处理
     return fallbackUrlResolve(baseUrl, relativePath);
   }
@@ -369,13 +366,13 @@ export function getBaseUrl(m3u8Url: string) {
     if (url.pathname.endsWith('.m3u8')) {
       url.pathname = url.pathname.substring(
         0,
-        url.pathname.lastIndexOf('/') + 1
+        url.pathname.lastIndexOf('/') + 1,
       );
     } else if (!url.pathname.endsWith('/')) {
       url.pathname += '/';
     }
     return url.protocol + '//' + url.host + url.pathname;
-  } catch (error) {
+  } catch {
     return m3u8Url.endsWith('/') ? m3u8Url : m3u8Url + '/';
   }
 }

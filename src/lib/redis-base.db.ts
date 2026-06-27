@@ -280,6 +280,15 @@ export abstract class BaseRedisStorage implements IStorage {
     );
   }
 
+  async restoreUserPassword(
+    userName: string,
+    storedPassword: string,
+  ): Promise<void> {
+    await this.withRetry(() =>
+      this.client.set(this.userPwdKey(userName), ensureString(storedPassword)),
+    );
+  }
+
   async verifyUser(userName: string, password: string): Promise<boolean> {
     const stored = await this.withRetry(() =>
       this.client.get(this.userPwdKey(userName)),
@@ -412,6 +421,34 @@ export abstract class BaseRedisStorage implements IStorage {
     await this.withRetry(() =>
       this.client.set(this.adminConfigKey(), JSON.stringify(config)),
     );
+  }
+
+  async hasAnyData(): Promise<boolean> {
+    const adminConfig = await this.withRetry(() =>
+      this.client.get(this.adminConfigKey()),
+    );
+    if (adminConfig !== null) {
+      return true;
+    }
+
+    const keyPatterns = [
+      'u:*:pwd',
+      'u:*:pr:*',
+      'u:*:fav:*',
+      'u:*:skip:*',
+      'u:*:sh',
+      'rt:*',
+      'rtu:*',
+    ];
+
+    for (const pattern of keyPatterns) {
+      const keys = await this.withRetry(() => this.client.keys(pattern));
+      if (keys.length > 0) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // ---------- 跳过片头片尾配置 ----------

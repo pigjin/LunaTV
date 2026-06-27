@@ -1,9 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any,no-console */
 
 import { AdminConfig } from './admin.types';
 import { KvrocksStorage } from './kvrocks.db';
 import { RedisStorage } from './redis.db';
-import { Favorite, IStorage, PlayRecord, RefreshTokenRecord, SkipConfig } from './types';
+import {
+  Favorite,
+  IStorage,
+  PlayRecord,
+  RefreshTokenRecord,
+  SkipConfig,
+} from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
 // storage type 常量: 'localstorage' | 'redis' | 'upstash'，默认 'localstorage'
@@ -29,7 +35,9 @@ function createStorage(): IStorage {
       return new KvrocksStorage();
     case 'localstorage':
     default:
-      console.warn('[DbManager] Using localstorage mode - Persistent Refresh Tokens NOT AVAILABLE in backend');
+      console.warn(
+        '[DbManager] Using localstorage mode - Persistent Refresh Tokens NOT AVAILABLE in backend',
+      );
       return null as unknown as IStorage;
   }
 }
@@ -148,6 +156,13 @@ export class DbManager {
     await this.storage.registerUser(userName, password);
   }
 
+  async restoreUserPassword(
+    userName: string,
+    storedPassword: string,
+  ): Promise<void> {
+    await this.storage.restoreUserPassword(userName, storedPassword);
+  }
+
   async verifyUser(userName: string, password: string): Promise<boolean> {
     return this.storage.verifyUser(userName, password);
   }
@@ -198,6 +213,13 @@ export class DbManager {
     if (typeof (this.storage as any).setAdminConfig === 'function') {
       await (this.storage as any).setAdminConfig(config);
     }
+  }
+
+  async hasAnyData(): Promise<boolean> {
+    if (typeof (this.storage as any).hasAnyData === 'function') {
+      return (this.storage as any).hasAnyData();
+    }
+    throw new Error('存储类型不支持数据检查操作');
   }
 
   // ---------- 跳过片头片尾配置 ----------

@@ -46,6 +46,7 @@ export interface IStorage {
 
   // 用户相关
   registerUser(userName: string, password: string): Promise<void>;
+  restoreUserPassword(userName: string, storedPassword: string): Promise<void>;
   verifyUser(userName: string, password: string): Promise<boolean>;
   // 检查用户是否存在（无需密码）
   checkUserExist(userName: string): Promise<boolean>;
@@ -65,6 +66,7 @@ export interface IStorage {
   // 管理员配置相关
   getAdminConfig(): Promise<AdminConfig | null>;
   setAdminConfig(config: AdminConfig): Promise<void>;
+  hasAnyData(): Promise<boolean>;
 
   // 跳过片头片尾配置相关
   getSkipConfig(
