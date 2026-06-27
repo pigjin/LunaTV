@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       {
         error: '不支持本地存储进行管理员配置',
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
   const username = authInfo.username;
 
   try {
-    const config = await getConfig();
+    const config = await getConfig({ forceRefresh: true });
     const result: AdminConfigResult = {
       Role: 'owner',
       Config: config,
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       } else {
         return NextResponse.json(
           { error: '你是管理员吗你就访问？' },
-          { status: 401 }
+          { status: 401 },
         );
       }
     }
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
         error: '获取管理员配置失败',
         details: (error as Error).message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any,no-console */
+/* eslint-disable no-console */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 import { verifyAuth } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
-import { db } from '@/lib/db';
+import { getConfig, saveConfig } from '@/lib/config';
 
 export const runtime = 'nodejs';
 
@@ -117,7 +116,7 @@ export async function POST(request: NextRequest) {
       {
         error: '不支持本地存储进行管理员配置',
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -173,13 +172,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
 
-    const adminConfig = await getConfig();
+    const adminConfig = await getConfig({ forceRefresh: true });
 
     // 权限校验
     if (username !== process.env.USERNAME) {
       // 管理员
       const user = adminConfig.UserConfig.Users.find(
-        (u) => u.username === username
+        (u) => u.username === username,
       );
       if (!user || user.role !== 'admin' || user.banned) {
         return NextResponse.json({ error: '权限不足' }, { status: 401 });
@@ -202,7 +201,7 @@ export async function POST(request: NextRequest) {
     };
 
     // 写入数据库
-    await db.saveAdminConfig(adminConfig);
+    await saveConfig(adminConfig);
 
     return NextResponse.json(
       { ok: true },
@@ -210,7 +209,7 @@ export async function POST(request: NextRequest) {
         headers: {
           'Cache-Control': 'no-store', // 不缓存结果
         },
-      }
+      },
     );
   } catch (error) {
     console.error('更新站点配置失败:', error);
@@ -219,7 +218,7 @@ export async function POST(request: NextRequest) {
         error: '更新站点配置失败',
         details: (error as Error).message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

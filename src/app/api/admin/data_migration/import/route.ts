@@ -4,14 +4,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promisify } from 'util';
 import { gunzip } from 'zlib';
 
+import { AdminConfig } from '@/lib/admin.types';
 import { verifyAuth } from '@/lib/auth';
-import { configSelfCheck, setCachedConfig } from '@/lib/config';
+import { configSelfCheck, saveConfig } from '@/lib/config';
 import { SimpleCrypto } from '@/lib/crypto';
 import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
 
 const gunzipAsync = promisify(gunzip);
+
+interface MigrationUserData {
+  password?: string | null;
+  playRecords?: Record<string, any>;
+  favorites?: Record<string, any>;
+  searchHistory?: string[];
+  skipConfigs?: Record<string, any>;
+}
+
+interface MigrationSnapshot {
+  adminConfig: AdminConfig | null;
+  userData: Record<string, MigrationUserData>;
+}
 
 /**
  * @swagger
@@ -85,7 +99,7 @@ export async function POST(req: NextRequest) {
     if (storageType === 'localstorage') {
       return NextResponse.json(
         { error: '不支持本地存储进行数据迁移' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -99,7 +113,7 @@ export async function POST(req: NextRequest) {
     if (authInfo.username !== process.env.USERNAME) {
       return NextResponse.json(
         { error: '权限不足，只有站长可以导入数据' },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -123,10 +137,10 @@ export async function POST(req: NextRequest) {
     let decryptedData: string;
     try {
       decryptedData = SimpleCrypto.decrypt(encryptedData, password);
-    } catch (error) {
+    } catch {
       return NextResponse.json(
         { error: '解密失败，请检查密码是否正确' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -139,7 +153,7 @@ export async function POST(req: NextRequest) {
     let importData: any;
     try {
       importData = JSON.parse(decompressedData);
-    } catch (error) {
+    } catch {
       return NextResponse.json({ error: '备份文件格式错误' }, { status: 400 });
     }
 
@@ -147,60 +161,39 @@ export async function POST(req: NextRequest) {
     if (
       !importData.data ||
       !importData.data.adminConfig ||
-      !importData.data.userData
+      !importData.data.userData ||
+      typeof importData.data.userData !== 'object'
     ) {
       return NextResponse.json({ error: '备份文件格式无效' }, { status: 400 });
     }
 
-    // 开始导入数据 - 先清空现有数据
-    await db.clearAllData();
+    const checkedAdminConfig = configSelfCheck(importData.data.adminConfig);
+    const userData = importData.data.userData as Record<
+      string,
+      MigrationUserData
+    >;
+    const snapshot = await createCurrentDataSnapshot();
+    let clearedCurrentData = false;
 
-    // 导入管理员配置
-    importData.data.adminConfig = configSelfCheck(importData.data.adminConfig);
-    await db.saveAdminConfig(importData.data.adminConfig);
-    await setCachedConfig(importData.data.adminConfig);
+    try {
+      // 开始导入数据 - 已完整校验后才清空现有数据
+      await db.clearAllData();
+      clearedCurrentData = true;
 
-    // 导入用户数据
-    const userData = importData.data.userData;
-    for (const username in userData) {
-      const user = userData[username];
+      // 导入管理员配置
+      await saveConfig(checkedAdminConfig);
 
-      // 重新注册用户（包含密码）
-      if (user.password) {
-        await db.registerUser(username, user.password);
-      }
-
-      // 导入播放记录
-      if (user.playRecords) {
-        for (const [key, record] of Object.entries(user.playRecords)) {
-          await (db as any).storage.setPlayRecord(username, key, record);
+      // 导入用户数据
+      await importUserData(userData);
+    } catch (error) {
+      if (clearedCurrentData) {
+        try {
+          await restoreDataSnapshot(snapshot);
+        } catch (restoreError) {
+          console.error('导入失败后恢复原数据失败:', restoreError);
         }
       }
-
-      // 导入收藏夹
-      if (user.favorites) {
-        for (const [key, favorite] of Object.entries(user.favorites)) {
-          await (db as any).storage.setFavorite(username, key, favorite);
-        }
-      }
-
-      // 导入搜索历史
-      if (user.searchHistory && Array.isArray(user.searchHistory)) {
-        for (const keyword of user.searchHistory.reverse()) {
-          // 反转以保持顺序
-          await db.addSearchHistory(username, keyword);
-        }
-      }
-
-      // 导入跳过片头片尾配置
-      if (user.skipConfigs) {
-        for (const [key, skipConfig] of Object.entries(user.skipConfigs)) {
-          const [source, id] = key.split('+');
-          if (source && id) {
-            await db.setSkipConfig(username, source, id, skipConfig as any);
-          }
-        }
-      }
+      throw error;
     }
 
     return NextResponse.json({
@@ -216,7 +209,113 @@ export async function POST(req: NextRequest) {
     console.error('数据导入失败:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : '导入失败' },
-      { status: 500 }
+      { status: 500 },
     );
   }
+}
+
+async function createCurrentDataSnapshot(): Promise<MigrationSnapshot> {
+  const adminConfig = await db.getAdminConfig();
+  const users = await db.getAllUsers();
+  if (process.env.USERNAME && !users.includes(process.env.USERNAME)) {
+    users.push(process.env.USERNAME);
+  }
+
+  const uniqueUsers = Array.from(new Set(users));
+  const userData: Record<string, MigrationUserData> = {};
+  for (const username of uniqueUsers) {
+    userData[username] = {
+      password:
+        username === process.env.USERNAME
+          ? process.env.PASSWORD || null
+          : await getStoredUserPassword(username),
+      playRecords: await db.getAllPlayRecords(username),
+      favorites: await db.getAllFavorites(username),
+      searchHistory: await db.getSearchHistory(username),
+      skipConfigs: await db.getAllSkipConfigs(username),
+    };
+  }
+
+  return {
+    adminConfig,
+    userData,
+  };
+}
+
+async function restoreDataSnapshot(snapshot: MigrationSnapshot): Promise<void> {
+  await db.clearAllData();
+  if (snapshot.adminConfig) {
+    await saveConfig(snapshot.adminConfig);
+  }
+  await importUserData(snapshot.userData);
+}
+
+async function importUserData(
+  userData: Record<string, MigrationUserData>,
+): Promise<void> {
+  for (const username in userData) {
+    const user = userData[username];
+
+    if (user.password) {
+      await db.restoreUserPassword(username, user.password);
+    }
+
+    if (user.playRecords) {
+      for (const [key, record] of Object.entries(user.playRecords)) {
+        await (db as any).storage.setPlayRecord(username, key, record);
+      }
+    }
+
+    if (user.favorites) {
+      for (const [key, favorite] of Object.entries(user.favorites)) {
+        await (db as any).storage.setFavorite(username, key, favorite);
+      }
+    }
+
+    if (Array.isArray(user.searchHistory)) {
+      for (const keyword of [...user.searchHistory].reverse()) {
+        await db.addSearchHistory(username, keyword);
+      }
+    }
+
+    if (user.skipConfigs) {
+      for (const [key, skipConfig] of Object.entries(user.skipConfigs)) {
+        const parsedKey = parseStorageKey(key);
+        if (parsedKey) {
+          await db.setSkipConfig(
+            username,
+            parsedKey.source,
+            parsedKey.id,
+            skipConfig as any,
+          );
+        }
+      }
+    }
+  }
+}
+
+function parseStorageKey(key: string): { source: string; id: string } | null {
+  const separatorIndex = key.indexOf('+');
+  if (separatorIndex <= 0 || separatorIndex === key.length - 1) {
+    return null;
+  }
+
+  return {
+    source: key.slice(0, separatorIndex),
+    id: key.slice(separatorIndex + 1),
+  };
+}
+
+async function getStoredUserPassword(username: string): Promise<string | null> {
+  try {
+    const storage = (db as any).storage;
+    if (storage && typeof storage.client?.get === 'function') {
+      const password = await storage.client.get(`u:${username}:pwd`);
+      return typeof password === 'string' ? password : null;
+    }
+  } catch (error) {
+    console.error(`获取用户 ${username} 密码失败:`, error);
+  }
+
+  return null;
 }

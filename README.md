@@ -110,7 +110,7 @@ services:
     container_name: moontv-kvrocks
     restart: unless-stopped
     volumes:
-      - kvrocks-data:/var/lib/kvrocks
+      - kvrocks-data:/var/lib/kvrocks/db
     networks:
       - moontv-network
 networks:
@@ -143,6 +143,7 @@ services:
     image: redis:alpine
     container_name: moontv-redis
     restart: unless-stopped
+    command: redis-server --appendonly yes --appendfsync everysec
     networks:
       - moontv-network
     # 请开启持久化，否则升级/重启后数据丢失
@@ -175,6 +176,17 @@ services:
       - UPSTASH_TOKEN=上面的 TOKEN
 ```
 
+### 存储与备份注意事项
+
+- 首次部署请先启动并挂载好 Redis/Kvrocks/Upstash，再启动 LunaTV；环境变量必须包含 `USERNAME`、`PASSWORD`、`NEXT_PUBLIC_STORAGE_TYPE` 以及对应的存储连接变量。
+- 第一次访问或第一次读取后台配置时，LunaTV 会在确认存储可读且为空后自动生成默认后台配置；初始化完成后建议立即在后台导出一份备份。
+- 如果后台配置缺失但存储中仍有用户、播放记录、收藏、跳过片头片尾配置或 refresh token，LunaTV 会拒绝自动初始化；请先恢复备份、重新导入数据，或确认不需要旧数据后手动清空存储。
+- 不要把已有服务切到新的空数据卷后继续运行；这会被视为全新部署并生成新的默认后台配置，旧卷中的配置和用户数据不会自动迁移。
+- Redis 部署请同时挂载 `/data` 并开启 AOF；未开启持久化时，容器重建、异常退出或宿主机故障都可能造成最近的播放记录、收藏和后台配置丢失。
+- Kvrocks 部署请确认数据卷挂载到 `/var/lib/kvrocks/db`；挂错目录会导致容器重建后无法恢复数据库文件。
+- 后台数据导入会先校验备份并在导入失败时尝试恢复原数据，但仍建议导入前先导出一份新备份。
+- 如果 Redis/Kvrocks/Upstash 暂时不可达，服务会拒绝读取后台配置，不会自动初始化并覆盖为默认配置；请先修复存储连接。
+
 ### ☁️ Zeabur 部署（推荐）
 
 Thanks to @SzeMeng76
@@ -184,7 +196,6 @@ Zeabur 是一站式云端部署平台，使用预构建的 Docker 镜像可以�
 **部署步骤：**
 
 1. **添加 KVRocks 服务**（先添加数据库）
-
    - 点击 "Add Service" > "Docker Images"
    - 输入镜像名称：`apache/kvrocks`
    - 配置端口：`6666` (TCP)
@@ -199,7 +210,6 @@ Zeabur 是一站式云端部署平台，使用预构建的 Docker 镜像可以�
    > 💡 **重要提示**：持久化卷路径必须设置为 `/var/lib/kvrocks/db`（KVRocks 数据目录），这样配置文件保留在容器内，数据库文件持久化，重启后数据不会丢失！
 
 2. **添加 LunaTV 服务**
-
    - 点击 "Add Service" > "Docker Images"
    - 输入镜像名称：`ghcr.io/moontechlab/lunatv:latest`
    - 配置端口：`3000` (HTTP)
@@ -228,7 +238,6 @@ Zeabur 是一站式云端部署平台，使用预构建的 Docker 镜像可以�
    ```
 
    **注意**：
-
    - 使用服务名称作为主机名：`redis://apachekvrocks:6666`
    - 如果服务名称不同，请替换为实际名称
    - 两个服务必须在同一个 Project 中
@@ -258,7 +267,6 @@ Zeabur 是一站式云端部署平台，使用预构建的 Docker 镜像可以�
 **更新步骤：**
 
 1. **进入服务页面**
-
    - 点击需要更新的服务（LunaTV 或 KVRocks）
 
 2. **重启服务**

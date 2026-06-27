@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, no-console, @typescript-eslint/no-non-null-assertion */
+/* eslint-disable @typescript-eslint/no-explicit-any, no-console */
 
 import { db } from '@/lib/db';
 
@@ -33,6 +33,85 @@ interface ConfigFileStruct {
   };
 }
 
+type SiteConfig = AdminConfig['SiteConfig'];
+
+function createDefaultSiteConfig(cacheTime = 7200): SiteConfig {
+  return {
+    SiteName: process.env.NEXT_PUBLIC_SITE_NAME || 'MoonTV',
+    Announcement:
+      process.env.ANNOUNCEMENT ||
+      '本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。',
+    SearchDownstreamMaxPage:
+      Number(process.env.NEXT_PUBLIC_SEARCH_MAX_PAGE) || 5,
+    SiteInterfaceCacheTime: cacheTime,
+    DoubanProxyType:
+      process.env.NEXT_PUBLIC_DOUBAN_PROXY_TYPE || 'cmliussss-cdn-tencent',
+    DoubanProxy: process.env.NEXT_PUBLIC_DOUBAN_PROXY || '',
+    DoubanImageProxyType:
+      process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE ||
+      'cmliussss-cdn-tencent',
+    DoubanImageProxy: process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY || '',
+    DisableYellowFilter:
+      process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
+    FluidSearch: process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false',
+    EnableWebLive: process.env.NEXT_PUBLIC_ENABLE_WEB_LIVE === 'true',
+  };
+}
+
+function normalizeSiteConfig(
+  siteConfig?: Partial<SiteConfig>,
+  cacheTime = 7200,
+): SiteConfig {
+  const defaults = createDefaultSiteConfig(cacheTime);
+
+  return {
+    SiteName:
+      typeof siteConfig?.SiteName === 'string'
+        ? siteConfig.SiteName
+        : defaults.SiteName,
+    Announcement:
+      typeof siteConfig?.Announcement === 'string'
+        ? siteConfig.Announcement
+        : defaults.Announcement,
+    SearchDownstreamMaxPage:
+      typeof siteConfig?.SearchDownstreamMaxPage === 'number'
+        ? siteConfig.SearchDownstreamMaxPage
+        : defaults.SearchDownstreamMaxPage,
+    SiteInterfaceCacheTime:
+      typeof siteConfig?.SiteInterfaceCacheTime === 'number'
+        ? siteConfig.SiteInterfaceCacheTime
+        : defaults.SiteInterfaceCacheTime,
+    DoubanProxyType:
+      typeof siteConfig?.DoubanProxyType === 'string'
+        ? siteConfig.DoubanProxyType
+        : defaults.DoubanProxyType,
+    DoubanProxy:
+      typeof siteConfig?.DoubanProxy === 'string'
+        ? siteConfig.DoubanProxy
+        : defaults.DoubanProxy,
+    DoubanImageProxyType:
+      typeof siteConfig?.DoubanImageProxyType === 'string'
+        ? siteConfig.DoubanImageProxyType
+        : defaults.DoubanImageProxyType,
+    DoubanImageProxy:
+      typeof siteConfig?.DoubanImageProxy === 'string'
+        ? siteConfig.DoubanImageProxy
+        : defaults.DoubanImageProxy,
+    DisableYellowFilter:
+      typeof siteConfig?.DisableYellowFilter === 'boolean'
+        ? siteConfig.DisableYellowFilter
+        : defaults.DisableYellowFilter,
+    FluidSearch:
+      typeof siteConfig?.FluidSearch === 'boolean'
+        ? siteConfig.FluidSearch
+        : defaults.FluidSearch,
+    EnableWebLive:
+      typeof siteConfig?.EnableWebLive === 'boolean'
+        ? siteConfig.EnableWebLive
+        : defaults.EnableWebLive,
+  };
+}
+
 export const API_CONFIG = {
   search: {
     path: '?ac=videolist&wd=',
@@ -54,21 +133,69 @@ export const API_CONFIG = {
 };
 
 // 在模块加载时根据环境决定配置来源
-let cachedConfig: AdminConfig;
+let cachedConfig: AdminConfig | undefined;
+
+interface GetConfigOptions {
+  forceRefresh?: boolean;
+}
+
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`首次部署初始化失败：缺少环境变量 ${name}`);
+  }
+  return value;
+}
+
+function validateFirstDeployInitializationEnv() {
+  getRequiredEnv('USERNAME');
+  getRequiredEnv('PASSWORD');
+
+  const storageType = getRequiredEnv('NEXT_PUBLIC_STORAGE_TYPE');
+  if (!['redis', 'kvrocks', 'upstash'].includes(storageType)) {
+    throw new Error(
+      '首次部署初始化失败：NEXT_PUBLIC_STORAGE_TYPE 必须为 redis、kvrocks 或 upstash',
+    );
+  }
+
+  if (storageType === 'redis') {
+    getRequiredEnv('REDIS_URL');
+    return;
+  }
+
+  if (storageType === 'kvrocks') {
+    getRequiredEnv('KVROCKS_URL');
+    return;
+  }
+
+  getRequiredEnv('UPSTASH_URL');
+  getRequiredEnv('UPSTASH_TOKEN');
+}
+
+async function ensureFirstDeployCanInitialize() {
+  validateFirstDeployInitializationEnv();
+
+  const hasAnyData = await db.hasAnyData();
+  if (hasAnyData) {
+    throw new Error(
+      '后台配置缺失但存储中已有数据，请先恢复备份、重新导入或手动清空存储后再初始化。',
+    );
+  }
+}
 
 // 从配置文件补充管理员配置
 export function refineConfig(adminConfig: AdminConfig): AdminConfig {
   let fileConfig: ConfigFileStruct;
   try {
     fileConfig = JSON.parse(adminConfig.ConfigFile) as ConfigFileStruct;
-  } catch (e) {
+  } catch {
     fileConfig = {} as ConfigFileStruct;
   }
 
   // 合并文件中的源信息
   const apiSitesFromFile = Object.entries(fileConfig.api_site || []);
   const currentApiSites = new Map(
-    (adminConfig.SourceConfig || []).map((s) => [s.key, s])
+    (adminConfig.SourceConfig || []).map((s) => [s.key, s]),
   );
 
   apiSitesFromFile.forEach(([key, site]) => {
@@ -106,7 +233,7 @@ export function refineConfig(adminConfig: AdminConfig): AdminConfig {
   // 覆盖 CustomCategories
   const customCategoriesFromFile = fileConfig.custom_category || [];
   const currentCustomCategories = new Map(
-    (adminConfig.CustomCategories || []).map((c) => [c.query + c.type, c])
+    (adminConfig.CustomCategories || []).map((c) => [c.query + c.type, c]),
   );
 
   customCategoriesFromFile.forEach((category) => {
@@ -130,7 +257,7 @@ export function refineConfig(adminConfig: AdminConfig): AdminConfig {
 
   // 检查现有 CustomCategories 是否在 fileConfig.custom_category 中，如果不在则标记为 custom
   const customCategoriesFromFileKeys = new Set(
-    customCategoriesFromFile.map((c) => c.query + c.type)
+    customCategoriesFromFile.map((c) => c.query + c.type),
   );
   currentCustomCategories.forEach((category) => {
     if (!customCategoriesFromFileKeys.has(category.query + category.type)) {
@@ -143,7 +270,7 @@ export function refineConfig(adminConfig: AdminConfig): AdminConfig {
 
   const livesFromFile = Object.entries(fileConfig.lives || []);
   const currentLives = new Map(
-    (adminConfig.LiveConfig || []).map((l) => [l.key, l])
+    (adminConfig.LiveConfig || []).map((l) => [l.key, l]),
   );
   livesFromFile.forEach(([key, site]) => {
     const existingLive = currentLives.get(key);
@@ -191,37 +318,18 @@ async function getInitConfig(
     URL: '',
     AutoUpdate: false,
     LastCheck: '',
-  }
+  },
 ): Promise<AdminConfig> {
   let cfgFile: ConfigFileStruct;
   try {
     cfgFile = JSON.parse(configFile) as ConfigFileStruct;
-  } catch (e) {
+  } catch {
     cfgFile = {} as ConfigFileStruct;
   }
   const adminConfig: AdminConfig = {
     ConfigFile: configFile,
     ConfigSubscribtion: subConfig,
-    SiteConfig: {
-      SiteName: process.env.NEXT_PUBLIC_SITE_NAME || 'MoonTV',
-      Announcement:
-        process.env.ANNOUNCEMENT ||
-        '本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。',
-      SearchDownstreamMaxPage:
-        Number(process.env.NEXT_PUBLIC_SEARCH_MAX_PAGE) || 5,
-      SiteInterfaceCacheTime: cfgFile.cache_time || 7200,
-      DoubanProxyType:
-        process.env.NEXT_PUBLIC_DOUBAN_PROXY_TYPE || 'cmliussss-cdn-tencent',
-      DoubanProxy: process.env.NEXT_PUBLIC_DOUBAN_PROXY || '',
-      DoubanImageProxyType:
-        process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE ||
-        'cmliussss-cdn-tencent',
-      DoubanImageProxy: process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY || '',
-      DisableYellowFilter:
-        process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
-      FluidSearch: process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false',
-      EnableWebLive: process.env.NEXT_PUBLIC_ENABLE_WEB_LIVE === 'true',
-    },
+    SiteConfig: createDefaultSiteConfig(cfgFile.cache_time || 7200),
     UserConfig: {
       Users: [],
     },
@@ -294,9 +402,17 @@ async function getInitConfig(
   return adminConfig;
 }
 
-export async function getConfig(): Promise<AdminConfig> {
+export async function saveConfig(config: AdminConfig): Promise<void> {
+  const checkedConfig = configSelfCheck(config);
+  await db.saveAdminConfig(checkedConfig);
+  cachedConfig = checkedConfig;
+}
+
+export async function getConfig(
+  options: GetConfigOptions = {},
+): Promise<AdminConfig> {
   // 直接使用内存缓存
-  if (cachedConfig) {
+  if (cachedConfig && !options.forceRefresh) {
     return cachedConfig;
   }
 
@@ -306,46 +422,31 @@ export async function getConfig(): Promise<AdminConfig> {
     adminConfig = await db.getAdminConfig();
   } catch (e) {
     console.error('获取管理员配置失败:', e);
+    throw e;
   }
 
   // db 中无配置，执行一次初始化
   if (!adminConfig) {
+    await ensureFirstDeployCanInitialize();
     adminConfig = await getInitConfig('');
+    await saveConfig(adminConfig);
+    return cachedConfig as AdminConfig;
   }
+
+  const originalConfig = JSON.stringify(adminConfig);
   adminConfig = configSelfCheck(adminConfig);
+  if (JSON.stringify(adminConfig) !== originalConfig) {
+    await saveConfig(adminConfig);
+    return cachedConfig as AdminConfig;
+  }
+
   cachedConfig = adminConfig;
-  db.saveAdminConfig(cachedConfig);
   return cachedConfig;
 }
 
 export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   // 确保必要的属性存在和初始化
-  if (!adminConfig.SiteConfig) {
-    adminConfig.SiteConfig = {
-      SiteName: process.env.NEXT_PUBLIC_SITE_NAME || 'MoonTV',
-      Announcement:
-        process.env.ANNOUNCEMENT ||
-        '本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。',
-      SearchDownstreamMaxPage:
-        Number(process.env.NEXT_PUBLIC_SEARCH_MAX_PAGE) || 5,
-      SiteInterfaceCacheTime: 7200,
-      DoubanProxyType:
-        process.env.NEXT_PUBLIC_DOUBAN_PROXY_TYPE || 'cmliussss-cdn-tencent',
-      DoubanProxy: process.env.NEXT_PUBLIC_DOUBAN_PROXY || '',
-      DoubanImageProxyType:
-        process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE ||
-        'cmliussss-cdn-tencent',
-      DoubanImageProxy: process.env.NEXT_PUBLIC_DOUBAN_IMAGE_PROXY || '',
-      DisableYellowFilter:
-        process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true',
-      FluidSearch: process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false',
-      EnableWebLive: process.env.NEXT_PUBLIC_ENABLE_WEB_LIVE === 'true',
-    };
-  }
-  if (typeof adminConfig.SiteConfig.EnableWebLive !== 'boolean') {
-    adminConfig.SiteConfig.EnableWebLive =
-      process.env.NEXT_PUBLIC_ENABLE_WEB_LIVE === 'true';
-  }
+  adminConfig.SiteConfig = normalizeSiteConfig(adminConfig.SiteConfig);
   if (!adminConfig.UserConfig) {
     adminConfig.UserConfig = { Users: [] };
   }
@@ -382,10 +483,10 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   });
   // 过滤站长
   const originOwnerCfg = adminConfig.UserConfig.Users.find(
-    (u) => u.username === ownerUser
+    (u) => u.username === ownerUser,
   );
   adminConfig.UserConfig.Users = adminConfig.UserConfig.Users.filter(
-    (user) => user.username !== ownerUser
+    (user) => user.username !== ownerUser,
   );
   // 其他用户不得拥有 owner 权限
   adminConfig.UserConfig.Users.forEach((user) => {
@@ -421,7 +522,7 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
       }
       seenCustomCategoryKeys.add(category.query + category.type);
       return true;
-    }
+    },
   );
 
   // 直播源去重
@@ -438,21 +539,17 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
 }
 
 export async function resetConfig() {
-  let originConfig: AdminConfig | null = null;
-  try {
-    originConfig = await db.getAdminConfig();
-  } catch (e) {
-    console.error('获取管理员配置失败:', e);
-  }
+  const originConfig = await db.getAdminConfig();
   if (!originConfig) {
-    originConfig = {} as AdminConfig;
+    const adminConfig = await getInitConfig('');
+    await saveConfig(adminConfig);
+    return;
   }
   const adminConfig = await getInitConfig(
     originConfig.ConfigFile,
-    originConfig.ConfigSubscribtion
+    originConfig.ConfigSubscribtion,
   );
-  cachedConfig = adminConfig;
-  await db.saveAdminConfig(adminConfig);
+  await saveConfig(adminConfig);
 
   return;
 }
@@ -497,7 +594,7 @@ export async function getAvailableApiSites(user?: string): Promise<ApiSite[]> {
       const tagConfig = config.UserConfig.Tags?.find((t) => t.name === tagName);
       if (tagConfig && tagConfig.enabledApis) {
         tagConfig.enabledApis.forEach((apiKey) =>
-          enabledApisFromTags.add(apiKey)
+          enabledApisFromTags.add(apiKey),
         );
       }
     });
