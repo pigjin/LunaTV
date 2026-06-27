@@ -11,6 +11,56 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '100.1.3',
+    date: '2026-06-27',
+    added: [
+      // 无新增内容
+    ],
+    changed: [
+      'Docker 镜像升级到 Node 22，并固定 pnpm 11.9.0 以兼容 pnpm 11 构建',
+    ],
+    fixed: [
+      '修复 Docker 镜像构建时 pnpm 11 在 Node 20 环境下安装依赖失败的问题',
+    ],
+  },
+  {
+    version: '100.1.2',
+    date: '2026-03-15',
+    added: [
+      // 无新增内容
+    ],
+    changed: [
+      '移除豆瓣图片代理中的「直连」和「豆瓣官方精品 CDN」选项，历史数据自动兼容为服务器代理',
+    ],
+    fixed: [
+      // 无修复内容
+    ],
+  },
+  {
+    version: '100.1.1',
+    date: '2026-02-27',
+    added: [
+      // 无新增内容
+    ],
+    changed: ['搜索页使用虚拟滚动，优化滚动性能'],
+    fixed: [
+      // 无修复内容
+    ],
+  },
+  {
+    version: '100.1.0',
+    date: '2026-02-27',
+    added: ['管理面板新增开关支持关闭网页直播'],
+    changed: [
+      '优化用户数据存储结构，加速数据获取',
+      '用户密码加盐存储',
+      '新增数据自动迁移',
+    ],
+    fixed: [
+      // 无修复内容
+    ],
+  },
+  {
     version: '100.0.3',
     date: '2025-10-27',
     added: [
